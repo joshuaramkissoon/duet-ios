@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CLIENT_ID</key>
+	<string>21190488759-n6pse29kmauajj5giojlo6r8isbpudt7.apps.googleusercontent.com</string>
+	<key>REVERSED_CLIENT_ID</key>
+	<string>com.googleusercontent.apps.21190488759-n6pse29kmauajj5giojlo6r8isbpudt7</string>
+	<key>API_KEY</key>
+	<string>AIzaSyD9RZLQG2IbiyBgfxWnJoKUp9aaWJNaZ4U</string>
+	<key>GCM_SENDER_ID</key>
+	<string>21190488759</string>
+	<key>PLIST_VERSION</key>
+	<string>1</string>
+	<key>BUNDLE_ID</key>
+	<string>jram.Duet.Duet</string>
+	<key>PROJECT_ID</key>
+	<string>duet-7e50a</string>
+	<key>STORAGE_BUCKET</key>
+	<string>duet-7e50a.firebasestorage.app</string>
+	<key>IS_ADS_ENABLED</key>
+	<false></false>
+	<key>IS_ANALYTICS_ENABLED</key>
+	<false></false>
+	<key>IS_APPINVITE_ENABLED</key>
+	<true></true>
+	<key>IS_GCM_ENABLED</key>
+	<true></true>
+	<key>IS_SIGNIN_ENABLED</key>
+	<true></true>
+	<key>GOOGLE_APP_ID</key>
+	<string>1:21190488759:ios:7ce983ed9a03b955e11332</string>
+</dict>
+</plist>

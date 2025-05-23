@@ -6,6 +6,16 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		723507F52DD97CF80024815C /* Lottie in Frameworks */ = {isa = PBXBuildFile; productRef = 723507F42DD97CF80024815C /* Lottie */; };
+		723508082DDBEBDD0024815C /* FirebaseAnalytics in Frameworks */ = {isa = PBXBuildFile; productRef = 723508072DDBEBDD0024815C /* FirebaseAnalytics */; };
+		7235080A2DDBEBDD0024815C /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = 723508092DDBEBDD0024815C /* FirebaseAuth */; };
+		7235080D2DDBECEF0024815C /* GoogleSignIn in Frameworks */ = {isa = PBXBuildFile; productRef = 7235080C2DDBECEF0024815C /* GoogleSignIn */; };
+		7235080F2DDBECEF0024815C /* GoogleSignInSwift in Frameworks */ = {isa = PBXBuildFile; productRef = 7235080E2DDBECEF0024815C /* GoogleSignInSwift */; };
+		72F186AE2DDC7024003B2C4F /* FirebaseDynamicLinks in Frameworks */ = {isa = PBXBuildFile; productRef = 72F186AD2DDC7024003B2C4F /* FirebaseDynamicLinks */; };
+		72F186B02DDC7024003B2C4F /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = 72F186AF2DDC7024003B2C4F /* FirebaseFirestore */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		723507B12DD81E370024815C /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -29,9 +39,22 @@
 		723507BA2DD81E370024815C /* DuetUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = DuetUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		72F186B82DDC7C10003B2C4F /* Exceptions for "Duet" folder in "Duet" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 723507A12DD81E350024815C /* Duet */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		723507A42DD81E350024815C /* Duet */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				72F186B82DDC7C10003B2C4F /* Exceptions for "Duet" folder in "Duet" target */,
+			);
 			path = Duet;
 			sourceTree = "<group>";
 		};
@@ -52,6 +75,13 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				7235080F2DDBECEF0024815C /* GoogleSignInSwift in Frameworks */,
+				723508082DDBEBDD0024815C /* FirebaseAnalytics in Frameworks */,
+				7235080D2DDBECEF0024815C /* GoogleSignIn in Frameworks */,
+				7235080A2DDBEBDD0024815C /* FirebaseAuth in Frameworks */,
+				723507F52DD97CF80024815C /* Lottie in Frameworks */,
+				72F186AE2DDC7024003B2C4F /* FirebaseDynamicLinks in Frameworks */,
+				72F186B02DDC7024003B2C4F /* FirebaseFirestore in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -112,6 +142,13 @@
 			);
 			name = Duet;
 			packageProductDependencies = (
+				723507F42DD97CF80024815C /* Lottie */,
+				723508072DDBEBDD0024815C /* FirebaseAnalytics */,
+				723508092DDBEBDD0024815C /* FirebaseAuth */,
+				7235080C2DDBECEF0024815C /* GoogleSignIn */,
+				7235080E2DDBECEF0024815C /* GoogleSignInSwift */,
+				72F186AD2DDC7024003B2C4F /* FirebaseDynamicLinks */,
+				72F186AF2DDC7024003B2C4F /* FirebaseFirestore */,
 			);
 			productName = Duet;
 			productReference = 723507A22DD81E350024815C /* Duet.app */;
@@ -195,6 +232,11 @@
 			);
 			mainGroup = 723507992DD81E350024815C;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				723507F32DD97C810024815C /* XCRemoteSwiftPackageReference "lottie-spm" */,
+				723508062DDBEBDD0024815C /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */,
+				7235080B2DDBECEF0024815C /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 723507A32DD81E350024815C /* Products */;
 			projectDirPath = "";
@@ -391,8 +433,10 @@
 				CODE_SIGN_ENTITLEMENTS = Duet/Duet.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = U5D3H6CY73;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Duet/Info.plist;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
@@ -403,12 +447,12 @@
 				"INFOPLIST_KEY_UIStatusBarStyle[sdk=iphonesimulator*]" = UIStatusBarStyleDefault;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				IPHONEOS_DEPLOYMENT_TARGET = 18.4;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.6;
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 15.3;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = Duet.Duet;
+				PRODUCT_BUNDLE_IDENTIFIER = jram.Duet.Duet;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
 				SDKROOT = auto;
@@ -428,8 +472,10 @@
 				CODE_SIGN_ENTITLEMENTS = Duet/Duet.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = U5D3H6CY73;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Duet/Info.plist;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
@@ -440,12 +486,12 @@
 				"INFOPLIST_KEY_UIStatusBarStyle[sdk=iphonesimulator*]" = UIStatusBarStyleDefault;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				IPHONEOS_DEPLOYMENT_TARGET = 18.4;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.6;
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 15.3;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = Duet.Duet;
+				PRODUCT_BUNDLE_IDENTIFIER = jram.Duet.Duet;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
 				SDKROOT = auto;
@@ -583,6 +629,71 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		723507F32DD97C810024815C /* XCRemoteSwiftPackageReference "lottie-spm" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/airbnb/lottie-spm.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 4.5.1;
+			};
+		};
+		723508062DDBEBDD0024815C /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/firebase/firebase-ios-sdk.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 11.12.0;
+			};
+		};
+		7235080B2DDBECEF0024815C /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/google/GoogleSignIn-iOS.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 8.0.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		723507F42DD97CF80024815C /* Lottie */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 723507F32DD97C810024815C /* XCRemoteSwiftPackageReference "lottie-spm" */;
+			productName = Lottie;
+		};
+		723508072DDBEBDD0024815C /* FirebaseAnalytics */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 723508062DDBEBDD0024815C /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseAnalytics;
+		};
+		723508092DDBEBDD0024815C /* FirebaseAuth */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 723508062DDBEBDD0024815C /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseAuth;
+		};
+		7235080C2DDBECEF0024815C /* GoogleSignIn */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 7235080B2DDBECEF0024815C /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */;
+			productName = GoogleSignIn;
+		};
+		7235080E2DDBECEF0024815C /* GoogleSignInSwift */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 7235080B2DDBECEF0024815C /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */;
+			productName = GoogleSignInSwift;
+		};
+		72F186AD2DDC7024003B2C4F /* FirebaseDynamicLinks */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 723508062DDBEBDD0024815C /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseDynamicLinks;
+		};
+		72F186AF2DDC7024003B2C4F /* FirebaseFirestore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 723508062DDBEBDD0024815C /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseFirestore;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 7235079A2DD81E350024815C /* Project object */;
 }
