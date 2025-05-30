@@ -21,6 +21,8 @@ struct GroupDetailView: View {
     @State private var renameText: String = ""
     @State private var showingEmojiSelection = false
     @State private var showingURLInput = false
+    @State private var showingIdeasSearch = false
+    @State private var ideasSearchQuery = ""
     
 
     init(group: DuetGroup) {
@@ -33,6 +35,61 @@ struct GroupDetailView: View {
     
     private var isOwner: Bool {
         authVM.user?.uid == viewModel.group.ownerId
+    }
+
+    // MARK: - Search functionality             
+    private var filteredIdeas: [GroupIdea] {
+        guard !ideasSearchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return viewModel.ideas
+        }
+        
+        let query = ideasSearchQuery.lowercased()
+        return viewModel.ideas.filter { idea in
+            // Search in title
+            if idea.dateIdea.title.lowercased().contains(query) {
+                return true
+            }
+            
+            // Search in sales pitch
+            if idea.dateIdea.sales_pitch.lowercased().contains(query) {
+                return true
+            }
+            
+            // Search in summary
+            if idea.dateIdea.summary.lowercased().contains(query) {
+                return true
+            }
+            
+            // Search in location
+            if idea.dateIdea.location.lowercased().contains(query) {
+                return true
+            }
+            
+            // Search in season
+            if idea.dateIdea.season.rawValue.lowercased().contains(query) {
+                return true
+            }
+            
+            // Search in tags
+            if idea.dateIdea.tags.contains(where: { $0.title.lowercased().contains(query) }) {
+                return true
+            }
+            
+            return false
+        }
+    }
+    
+    private func showIdeasSearch() {
+        withAnimation(.easeInOut(duration: 0.3)) {
+            showingIdeasSearch = true
+        }
+    }
+    
+    private func hideIdeasSearch() {
+        withAnimation(.easeInOut(duration: 0.3)) {
+            showingIdeasSearch = false
+            ideasSearchQuery = ""
+        }
     }
 
     // MARK: - Computed styling
@@ -58,7 +115,14 @@ struct GroupDetailView: View {
                             ))
                     }
                     
-                    GroupIdeasView(viewModel: viewModel)
+                    GroupIdeasView(
+                        viewModel: viewModel,
+                        filteredIdeas: filteredIdeas,
+                        showingSearch: showingIdeasSearch,
+                        onShowSearch: showIdeasSearch,
+                        onHideSearch: hideIdeasSearch,
+                        searchQuery: $ideasSearchQuery
+                    )
                         .environmentObject(toast)
                         .environmentObject(processingManager)
                 }

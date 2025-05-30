@@ -463,28 +463,45 @@ struct ExploreCard: View {
                 ProfileImage(user: user, diam: 24)
                 
                 // "Created by" text
-                HStack(spacing: 4) {
-                    Text("Created by")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                    
-                    Text(displayName)
-                        .font(.caption)
-                        .fontWeight(.medium)
-                        .foregroundColor(.primary)
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: 4) {
+                        Text("Created by")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        
+                        Text(displayName)
+                            .font(.caption)
+                            .fontWeight(.medium)
+                            .foregroundColor(.primary)
+
+                    if let createdAtTimestamp = activity.created_at {
+                        Spacer()
+                        let createdAtDate = Date(timeIntervalSince1970: TimeInterval(createdAtTimestamp))
+                        Text(timeAgoString(from: createdAtDate))
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .padding(.trailing, 4)
+                    }
+                    }
                 }
                 
                 Spacer()
-            
-                // Time indicator using created_at timestamp
-                if let createdAtTimestamp = activity.created_at {
-                    let createdAtDate = Date(timeIntervalSince1970: TimeInterval(createdAtTimestamp))
-                    Text(timeAgoString(from: createdAtDate))
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
-                }
             }
             .padding(.bottom, 4)
+        } else {
+            // Debug: Show when user info is missing
+            #if DEBUG
+            if activity.user_id == nil && activity.user_name == nil {
+                HStack {
+                    Text("No author info available")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                        .opacity(0.7)
+                    Spacer()
+                }
+                .padding(.bottom, 2)
+            }
+            #endif
         }
     }
     

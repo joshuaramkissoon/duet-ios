@@ -269,7 +269,18 @@ class NetworkClient: NSObject {
     func searchActivities(query: String, completion: @escaping (Result<[DateIdeaResponse], NetworkError>) -> Void) {
         let url = baseUrl + "/search"
         let body = ["query": query]
-        postJSON(url: url, body: body, completion: completion)
+        print("📡 Searching for: \(query)")
+        
+        postJSON(url: url, body: body) { (result: Result<[DateIdeaResponse], NetworkError>) in
+            switch result {
+            case .success(let activities):
+                print("🔍 Search returned \(activities.count) activities")
+                completion(.success(activities))
+            case .failure(let error):
+                print("❌ Search failed: \(error.localizedDescription)")
+                completion(.failure(error))
+            }
+        }
     }
     
     func summarizeVideo(url: String, completion: @escaping (Result<DateIdeaResponse, NetworkError>) -> Void) {
