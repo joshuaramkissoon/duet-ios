@@ -70,10 +70,46 @@ struct ActivityHistoryResponse: Decodable {
     let activities: [ActivitySummary]
 }
 
+struct PaginatedFeedResponse: Decodable {
+    let items: [DateIdeaResponse]
+    let total: Int
+    let page: Int
+    let pageSize: Int
+    let totalPages: Int
+    let hasNext: Bool
+    let hasPrevious: Bool
+    
+    private enum CodingKeys: String, CodingKey {
+        case items, total, page
+        case pageSize = "page_size"
+        case totalPages = "total_pages"
+        case hasNext = "has_next"
+        case hasPrevious = "has_previous"
+    }
+}
+
+enum ContentType: String, Codable {
+    case recipe = "recipe"
+    case dateIdea = "date_idea"
+    case activity = "activity"
+    case travel = "travel"
+}
+
+struct RecipeMetadata: Codable {
+    let cuisine_type: String?
+    let difficulty_level: String?
+    let servings: String?
+    let prep_time: String?
+    let cook_time: String?
+    let ingredients: [String]?
+    let instructions: [String]?
+}
+
 struct DateIdea: Identifiable, Codable {
     var id: String = UUID().uuidString
     let title: String
     let summary: String
+    let content_type: ContentType?
     let sales_pitch: String
     let activity: Activity
     let location: String
@@ -83,10 +119,11 @@ struct DateIdea: Identifiable, Codable {
     let required_items: [String]
     let tags: [Tag]
     let suggested_itinerary: [ItineraryItem]?
+    let recipe_metadata: RecipeMetadata?
     
     // CodingKeys to handle the id that's not in JSON
     private enum CodingKeys: String, CodingKey {
-        case title, summary, sales_pitch, activity, location, season, duration, cost_level, required_items, tags, suggested_itinerary
+        case title, summary, content_type, sales_pitch, activity, location, season, duration, cost_level, required_items, tags, suggested_itinerary, recipe_metadata
     }
     
     init(from decoder: Decoder) throws {
@@ -94,6 +131,7 @@ struct DateIdea: Identifiable, Codable {
         
         title = try container.decode(String.self, forKey: .title)
         summary = try container.decode(String.self, forKey: .summary)
+        content_type = try container.decodeIfPresent(ContentType.self, forKey: .content_type)
         sales_pitch = try container.decode(String.self, forKey: .sales_pitch)
         activity = try container.decode(Activity.self, forKey: .activity)
         location = try container.decode(String.self, forKey: .location)
@@ -103,6 +141,7 @@ struct DateIdea: Identifiable, Codable {
         required_items = try container.decode([String].self, forKey: .required_items)
         tags = try container.decode([Tag].self, forKey: .tags)
         suggested_itinerary = try container.decodeIfPresent([ItineraryItem].self, forKey: .suggested_itinerary)
+        recipe_metadata = try container.decodeIfPresent(RecipeMetadata.self, forKey: .recipe_metadata)
         
         // Set a default UUID string for id since it's not in the JSON
         id = UUID().uuidString
@@ -112,6 +151,7 @@ struct DateIdea: Identifiable, Codable {
     init(id: String = UUID().uuidString,
          title: String,
          summary: String,
+         content_type: ContentType? = nil,
          sales_pitch: String,
          activity: Activity,
          location: String,
@@ -120,10 +160,12 @@ struct DateIdea: Identifiable, Codable {
          cost_level: CostLevel,
          required_items: [String],
          tags: [Tag],
-         suggested_itinerary: [ItineraryItem]? = nil) {
+         suggested_itinerary: [ItineraryItem]? = nil,
+         recipe_metadata: RecipeMetadata? = nil) {
         self.id = id
         self.title = title
         self.summary = summary
+        self.content_type = content_type
         self.sales_pitch = sales_pitch
         self.activity = activity
         self.location = location
@@ -133,6 +175,7 @@ struct DateIdea: Identifiable, Codable {
         self.required_items = required_items
         self.tags = tags
         self.suggested_itinerary = suggested_itinerary
+        self.recipe_metadata = recipe_metadata
     }
 }
 

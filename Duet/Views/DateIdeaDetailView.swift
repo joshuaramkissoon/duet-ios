@@ -10,170 +10,193 @@ import AVKit
 
 struct DateIdeaDetailView: View {
     let dateIdea: DateIdeaResponse
+    var groupId: String? = nil
+    var scrollToComments: Bool = false
     
     @EnvironmentObject private var toastManager: ToastManager
     @Environment(\.openURL) private var openURL
     @ObservedObject var viewModel: DateIdeaViewModel
     @State private var showShareSheet = false
     
+    private var sectionTitle: String {
+        switch dateIdea.summary.content_type {
+        case .recipe:
+            return "About This Recipe"
+        case .travel:
+            return "About This Trip"
+        case .activity:
+            return "About This Activity"
+        case .dateIdea, .none:
+            return "About This Date"
+        }
+    }
+    
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
-                if !viewModel.videoUrl.isEmpty, let url = URL(string: viewModel.videoUrl) {
-                    HStack {
-                        Spacer()
-                        CachedVideoView(remoteURL: url, width: UIScreen.main.bounds.width - 100)
-                        Spacer()
-                    }
-                    .padding(.horizontal)
-                }
-                
-                // Title and basic info
-                VStack(alignment: .leading, spacing: 16) {
-                    Text(dateIdea.title)
-                        .font(.title)
-                        .fontWeight(.bold)
-                        .foregroundColor(.primary)
-                        .padding(.horizontal)
-                    
-                    // Tags row
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 4) {
-                            CategoryPill(text: dateIdea.summary.activity.title,
-                                         icon: dateIdea.summary.activity.icon,
-                                         color: .appPrimary)
-                            .padding(.leading, 6)
-                            
-                            CategoryPill(text: dateIdea.summary.season.rawValue.capitalized,
-                                         icon: dateIdea.summary.season.icon,
-                                         color: .appSecondary)
-                            .padding(.leading, 6)
-                            
-                            CategoryPill(text: dateIdea.summary.cost_level.displayName,
-                                         icon: dateIdea.summary.cost_level.icon,
-                                         color: .appAccent)
-                            .padding(.leading, 6)
+        ScrollViewReader { proxy in
+            ScrollView {
+                VStack(alignment: .leading, spacing: 24) {
+                    if !viewModel.videoUrl.isEmpty, let url = URL(string: viewModel.videoUrl) {
+                        HStack {
+                            Spacer()
+                            CachedVideoView(
+                                remoteURL: url, 
+                                thumbnailB64: dateIdea.thumbnail_b64,
+                                aspectRatio: dateIdea.videoMetadata?.aspectRatio ?? 16/9,
+                                width: UIScreen.main.bounds.width - 100
+                            )
+                            Spacer()
                         }
-                        .padding(.bottom, 6)
-                    }
-                    
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 4) {
-                            ForEach(dateIdea.summary.tags, id: \.id) { tag in
-                                CategoryPill(text: tag.title, icon: tag.icon, color: .gray)
-                                    .padding(.leading, 6)
-                            }
-                        }
-                        .padding(.bottom, 4)
-                    }
-                    
-                    Divider()
                         .padding(.horizontal)
-                    
-                    // Location and duration
-                    HStack(spacing: 16) {
-                        InfoItem(icon: "mappin.and.ellipse", text: dateIdea.summary.location)
-                        InfoItem(icon: "clock", text: dateIdea.summary.duration)
                     }
-                    .padding(.horizontal)
                     
-                    // Sales pitch
-                    QuoteCard(text: dateIdea.summary.sales_pitch)
-                        .padding(.horizontal)
-                    
-                    // Summary section
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("About This Date")
-                            .font(.headline)
+                    // Title and basic info
+                    VStack(alignment: .leading, spacing: 16) {
+                        Text(dateIdea.title)
+                            .font(.title)
+                            .fontWeight(.bold)
                             .foregroundColor(.primary)
+                            .padding(.horizontal)
                         
-                        Text(dateIdea.summary.summary)
-                            .foregroundColor(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                    .padding(.horizontal)
-                    
-                    // Required items
-                    if !dateIdea.summary.required_items.isEmpty {
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("What You'll Need")
-                                .font(.headline)
-                                .foregroundColor(.primary)
-                            
-                            VStack(alignment: .leading, spacing: 8) {
-                                ForEach(dateIdea.summary.required_items, id: \.self) { item in
-                                    HStack(alignment: .top, spacing: 8) {
-                                        Image(systemName: "checkmark.circle.fill")
-                                            .foregroundColor(.appPrimary)
-                                        
-                                        Text(item)
-                                            .foregroundColor(.secondary)
-                                    }
+                        // Tags row
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 4) {
+                                CategoryPill(text: dateIdea.summary.activity.title,
+                                             icon: dateIdea.summary.activity.icon,
+                                             color: .appPrimary)
+                                .padding(.leading, 6)
+                                
+                                CategoryPill(text: dateIdea.summary.season.rawValue.capitalized,
+                                             icon: dateIdea.summary.season.icon,
+                                             color: .appSecondary)
+                                .padding(.leading, 6)
+                                
+                                CategoryPill(text: dateIdea.summary.cost_level.displayName,
+                                             icon: dateIdea.summary.cost_level.icon,
+                                             color: .appAccent)
+                                .padding(.leading, 6)
+                            }
+                            .padding(.bottom, 6)
+                        }
+                        
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 4) {
+                                ForEach(dateIdea.summary.tags, id: \.id) { tag in
+                                    CategoryPill(text: tag.title, icon: tag.icon, color: .gray)
+                                        .padding(.leading, 6)
                                 }
                             }
                         }
-                        .padding(.horizontal)
-                    }
-                    
-                    if let itinerary = dateIdea.summary.suggested_itinerary, !itinerary.isEmpty {
-                        ItineraryView(itineraryItems: itinerary)
-                            .padding(.bottom, 16)
+                        .padding(.bottom, 4)
+                        
+                        Divider()
                             .padding(.horizontal)
-                    }
-                    
-                    // Share to group
-                    Button(action: {
-                        showShareSheet = true
-                    }) {
-                        HStack {
-                            Spacer()
-                            Image(systemName: "person.3.fill")
-                                .font(.body.bold())
-                            Text("Share to Group")
-                                .fontWeight(.semibold)
-                            Spacer()
+                        
+                        // Location and duration
+                        HStack(spacing: 16) {
+                            if dateIdea.summary.content_type != .recipe {
+                                InfoItem(icon: "mappin.and.ellipse", text: dateIdea.summary.location)
+                            }
+                            InfoItem(icon: "clock", text: dateIdea.summary.duration)
                         }
-                        .padding()
-                        .background(Color.appPrimary)
-                        .foregroundColor(.white)
-                        .cornerRadius(12)
+                        .padding(.horizontal)
+                        
+                        // Summary section
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text(sectionTitle)
+                                .font(.headline)
+                                .foregroundColor(.primary)
+                            
+                            Text(dateIdea.summary.summary)
+                                .foregroundColor(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        .padding(.horizontal)
+                        
+                        // Required items (only show if not a recipe - recipes show this inside RecipeView)
+                        if !dateIdea.summary.required_items.isEmpty && (dateIdea.summary.suggested_itinerary == nil && dateIdea.summary.recipe_metadata == nil){
+                            RequiredItemsSection(requiredItems: dateIdea.summary.required_items)
+                                .padding(.horizontal)
+                        }
+                        
+                        if let itinerary = dateIdea.summary.suggested_itinerary, !itinerary.isEmpty && dateIdea.summary.recipe_metadata == nil {
+                            ItineraryView(itineraryItems: itinerary, requiredItems: dateIdea.summary.required_items, totalDuration: dateIdea.summary.duration, location: dateIdea.summary.location)
+                                .padding(.bottom, 16)
+                                .padding(.horizontal)
+                        }
+                        
+                        if let recipeMetadata = dateIdea.summary.recipe_metadata {
+                            RecipeView(recipeMetadata: recipeMetadata, requiredItems: dateIdea.summary.required_items)
+                                .padding(.bottom, 16)
+                                .padding(.horizontal)
+                        }
+                        
+                        // Share to group
+                        Button(action: {
+                            showShareSheet = true
+                        }) {
+                            HStack {
+                                Spacer()
+                                Image(systemName: "person.3.fill")
+                                    .font(.body.bold())
+                                Text("Share to Group")
+                                    .fontWeight(.semibold)
+                                Spacer()
+                            }
+                            .padding()
+                            .background(Color.appPrimary)
+                            .foregroundColor(.white)
+                            .cornerRadius(12)
+                        }
+                        .padding(.vertical, 8)
+                        .padding(.horizontal)
+
+                        // Comments Section
+                        CommentSection(ideaId: dateIdea.id, groupId: groupId)
+                            .padding(.horizontal)
+                            .padding(.bottom, 16)
+                            .id("commentsSection")
                     }
-                    .padding(.vertical, 8)
-                    .padding(.horizontal)
                 }
             }
-        }
-        .onDisappear {
-            
-        }
-        .toolbar {
-            ToolbarItem(placement: .navigationBarTrailing) {
-                Menu {
-                    Button {
-                        showShareSheet = true
-                    } label: {
-                        Label("Share to Group", systemImage: "person.3.fill")
+            .scrollDismissesKeyboard(.interactively)
+            .onAppear {
+                if scrollToComments {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                        withAnimation(.easeInOut(duration: 0.3)) {
+                            proxy.scrollTo("commentsSection", anchor: .top)
+                        }
                     }
-                    
-                    if let src = dateIdea.original_source_url,
-                       let url = URL(string: src) {
+                }
+            }
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Menu {
                         Button {
-                            openURL(url)
+                            showShareSheet = true
                         } label: {
-                            Label("Open Source", systemImage: "link")
+                            Label("Share to Group", systemImage: "person.3.fill")
                         }
+                        
+                        if let src = dateIdea.original_source_url,
+                           let url = URL(string: src) {
+                            Button {
+                                openURL(url)
+                            } label: {
+                                Label("Open Source", systemImage: "link")
+                            }
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis")
+                            .rotationEffect(.degrees(90))
+                            .accessibilityLabel("Options")
                     }
-                } label: {
-                    Image(systemName: "ellipsis")
-                        .rotationEffect(.degrees(90))
-                        .accessibilityLabel("Options")
                 }
             }
+            .sheet(isPresented: $showShareSheet) {
+                ShareToGroupView(idea: dateIdea, isPresented: $showShareSheet, toastManager: toastManager)
+            }
+            .withAppBackground()
         }
-        .sheet(isPresented: $showShareSheet) {
-            ShareToGroupView(idea: dateIdea, isPresented: $showShareSheet, toastManager: toastManager)
-        }
-        .withAppBackground()
     }
 }
 
@@ -306,9 +329,49 @@ struct InfoItem: View {
         )
     ]
     
+    let sampleRecipeMetadata = RecipeMetadata(
+        cuisine_type: "Italian",
+        difficulty_level: "Easy",
+        servings: "4",
+        prep_time: "15 minutes",
+        cook_time: "30 minutes",
+        ingredients: [
+            "2 cups of pasta",
+            "1 jar of marinara sauce",
+            "1 lb ground beef",
+            "1 onion, diced",
+            "2 cloves garlic, minced",
+            "1 cup shredded mozzarella cheese"
+        ],
+        instructions: [
+            "Bring a large pot of salted water to boil and cook pasta according to package directions",
+            "In a large skillet, brown the ground beef over medium-high heat",
+            "Add diced onion and garlic to the beef and cook until onion is translucent",
+            "Stir in the marinara sauce and simmer for 10 minutes",
+            "Drain pasta and serve topped with meat sauce and mozzarella cheese"
+        ]
+    )
+    
+    let mockRecipeIdea = DateIdea(
+        title: "Homemade Spaghetti Bolognese",
+        summary: "A delicious and comforting Italian pasta dish perfect for a cozy dinner at home. This classic recipe combines perfectly seasoned ground beef with rich marinara sauce.",
+        content_type: .recipe,
+        sales_pitch: "Create a romantic Italian dinner at home with this authentic and delicious recipe!",
+        activity: Activity(title: "Cooking", icon: "fork.knife"),
+        location: "at home",
+        season: .indoor,
+        duration: "45 minutes",
+        cost_level: .low,
+        required_items: ["Large pot", "Skillet", "Wooden spoon", "Strainer"],
+        tags: [Tag(title: "Romantic", icon: "heart.fill"), Tag(title: "Comfort Food", icon: "house.fill"), Tag(title: "Italian", icon: "globe")],
+        suggested_itinerary: nil,
+        recipe_metadata: sampleRecipeMetadata
+    )
+    
     let mockDateIdea = DateIdea(
         title: "Sunset Picnic in the Park",
         summary: "Enjoy a romantic evening with your partner watching the sunset while having a picnic at a local park. Bring along wine, cheese, and fruits for a perfect evening.",
+        content_type: .dateIdea,
         sales_pitch: "Create an unforgettable evening under the fading sky with delicious treats and the one you love!",
         activity: Activity(title: "Outdoors", icon: "sun.max"),
         location: "Central Park, NYC",
@@ -319,5 +382,7 @@ struct InfoItem: View {
         tags: [Tag(title: "Romantic", icon: "heart.fill"), Tag(title: "relaxing", icon: "moon"), Tag(title: "nature", icon: "leaf")],
         suggested_itinerary: sampleItinerary
     )
-    DateIdeaDetailView(dateIdea: DateIdeaResponse(id: "id", summary: mockDateIdea, title: mockDateIdea.title, description: mockDateIdea.sales_pitch, thumbnail_b64: nil, thumbnail_url: nil, video_url: "http://example.com", original_source_url: nil), viewModel: DateIdeaViewModel(toast: ToastManager()))
+    
+    // Show recipe example
+    DateIdeaDetailView(dateIdea: DateIdeaResponse(id: "recipe-id", summary: mockRecipeIdea, title: mockRecipeIdea.title, description: mockRecipeIdea.sales_pitch, thumbnail_b64: nil, thumbnail_url: nil, video_url: "http://example.com", videoMetadata: nil, original_source_url: nil, user_id: nil, user_name: nil, created_at: nil), viewModel: DateIdeaViewModel(toast: ToastManager()))
 }

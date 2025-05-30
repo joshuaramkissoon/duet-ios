@@ -83,7 +83,7 @@ struct CachedVideoView: View {
             if let player {
                 VideoPlayer(player: player)
                     .shadow(color: Color.black.opacity(0.1), radius: 10, x: 0, y: 5)
-                    .frame(width: self.width, height: self.width * self.aspectRatio)
+                    .frame(width: self.width, height: self.width / self.aspectRatio)
                     .onAppear { player.play() }
                     .onDisappear {
                         player.pause()
@@ -98,13 +98,13 @@ struct CachedVideoView: View {
             if !isReady {                               // thumbnail until ready
                 VStack {
                     if let tb64 = thumbnailB64 {
-                        Base64ImageView(base64String: tb64, thumbWidth: self.width)
+                        Base64ImageView(base64String: tb64, thumbWidth: self.width, thumbHeight: self.width / self.aspectRatio)
                     }
                     else {
-                        PlaceholderImageView(thumbWidth: self.width)
+                        PlaceholderImageView(thumbWidth: self.width, thumbHeight: self.width / self.aspectRatio)
                     }
                 }
-                .frame(width: self.width, height: self.width * self.aspectRatio)
+                .frame(width: self.width, height: self.width / self.aspectRatio)
                 .transition(.opacity)
             }
         }

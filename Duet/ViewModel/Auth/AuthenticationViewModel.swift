@@ -23,6 +23,7 @@ class AuthenticationViewModel: ObservableObject {
     @Published var user: FirebaseAuth.User? {
         didSet { handleNewUser(oldValue: oldValue, newValue: user) }
     }
+    @Published var currentUser: User? // Current user object with profile data
     @Published var isSigningInAnonymously = false
     
     private var currentNonce: String?
@@ -32,6 +33,15 @@ class AuthenticationViewModel: ObservableObject {
         handle = Auth.auth().addStateDidChangeListener { [weak self] _, user in
             guard let self = self else { return }
             self.user = user
+            if let user {
+                SharedUserManager.shared.setCurrentUserId(user.uid)
+                self.fetchCurrentUserInfo(for: user)
+            }
+            else {
+                SharedUserManager.shared.clearCurrentUser()
+                self.currentUser = nil
+                UserCache.shared.cleanupExpired()
+            }
             self.state = (user == nil ? .unauthenticated : .authenticated)
         }
     }
@@ -47,6 +57,34 @@ class AuthenticationViewModel: ObservableObject {
         else { return }
         
         createRemoteUserRecord(for: user)
+    }
+    
+    private func fetchCurrentUserInfo(for firebaseUser: FirebaseAuth.User) {
+        // First check cache
+        if let cachedUser = UserCache.shared.getUser(id: firebaseUser.uid) {
+            self.currentUser = cachedUser
+            print("🟢 Loaded current user from cache: \(cachedUser.displayName)")
+            return
+        }
+        
+        // Fallback to network
+        NetworkClient.shared.getUsers(with: [firebaseUser.uid]) { [weak self] result in
+            DispatchQueue.main.async {
+                switch result {
+                case .success(let users):
+                    if let user = users.first {
+                        self?.currentUser = user
+                        UserCache.shared.cacheUser(user)
+                        print("🟢 Fetched and cached current user: \(user.displayName)")
+                    }
+                case .failure(let error):
+                    print("❌ Failed to fetch current user info: \(error)")
+                    // Create fallback user object from Firebase user data
+                    let fallbackUser = User(id: firebaseUser.uid, name: firebaseUser.displayName)
+                    self?.currentUser = fallbackUser
+                }
+            }
+        }
     }
     
     private func createRemoteUserRecord(for user: FirebaseAuth.User) {
@@ -66,7 +104,12 @@ class AuthenticationViewModel: ObservableObject {
     }
     
     func signOut() {
-        do { try Auth.auth().signOut() }
+        do { 
+            try Auth.auth().signOut()
+            // Clear user cache on sign out for privacy and data management
+            UserCache.shared.clearAll()
+            print("🟢 Signed out and cleared user cache")
+        }
         catch { errorMessage = error.localizedDescription }
     }
     

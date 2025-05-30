@@ -2,6 +2,8 @@ import SwiftUI
 
 struct ContentView: View {
     @EnvironmentObject private var toast: ToastManager
+    @EnvironmentObject private var exploreVM: ExploreViewModel
+    @EnvironmentObject private var processingManager: ProcessingManager
     @StateObject var activityVM: ActivityHistoryViewModel
     @StateObject private var viewModel: DateIdeaViewModel
 
@@ -24,7 +26,7 @@ struct ContentView: View {
 
             // Explore
             NavigationView {
-                ExploreView()
+                ExploreView(viewModel: exploreVM)
                     .withAppBackground()
                     .navigationTitle("Explore")
             }
@@ -47,26 +49,41 @@ struct ContentView: View {
             }
         }
         .accentColor(.appPrimary)
+        .onAppear {
+            // Configure the shared processing manager
+            processingManager.updateToast(toast)
+            
+            // Provide the ActivityHistoryViewModel reference
+            processingManager.updateActivityVM(activityVM)
+            
+            // Set up the processing manager in the view model
+            viewModel.setProcessingManager(processingManager)
+            
+            // Start listening to user processing jobs
+            print("🔄 ContentView appeared - starting user processing jobs listener")
+            processingManager.startListeningToUserJobs()
+        }
+        .onDisappear {
+            // Stop listening when view disappears
+            print("🛑 ContentView disappeared - stopping user processing jobs listener")
+            processingManager.stopListeningToUserJobs()
+        }
     }
 
     private var homeContent: some View {
         ScrollView {
-            VStack(spacing: 0) {
+            VStack(spacing: 14) {
+                URLInputView(viewModel: viewModel)
+                    .transition(.opacity)
                 
-                VStack {
-                    URLInputView(viewModel: viewModel)
-                        .transition(.opacity)
-                    
-                    ProcessingVideosView(viewModel: viewModel)
-                        .transition(.opacity)
-                        .padding()
+                ProcessingJobsView(processingManager: processingManager)
+                    .transition(.opacity)
 
-                    ActivityHistoryView(viewModel: activityVM)
-                        .padding(.bottom, 20)
-                        .transition(.opacity)
-                }
+                ActivityHistoryView(viewModel: activityVM)
+                    .transition(.opacity)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .padding(.horizontal, 16)
+            .padding(.bottom, 20)
         }
     }
 }
@@ -76,5 +93,6 @@ struct ContentView: View {
 struct ContentView_Previews: PreviewProvider {
     static var previews: some View {
         ContentView(toast: ToastManager(), activityHistoryVM: ActivityHistoryViewModel())
+            .environmentObject(ProcessingManager(toast: ToastManager(), activityVM: ActivityHistoryViewModel()))
     }
 }

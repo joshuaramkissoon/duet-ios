@@ -35,8 +35,14 @@ struct GroupIdea: Identifiable, Codable {
     let videoUrl:  String
     let originalSourceUrl: String?
     let thumbnailB64: String?
+    let videoMetadata: VideoMetadata?
     let addedBy: String
     let addedAt: Date
+    
+    /// Returns the CloudFront CDN URL for the video
+    var cloudFrontVideoURL: String {
+        return URLHelpers.convertToCloudFrontURL(videoUrl)
+    }
 }
 
 @MainActor
@@ -109,7 +115,7 @@ class GroupsViewModel: ObservableObject {
             guard snapshot.exists else {
                 joinResult = .failure(
                     title: "Oops!",
-                    message: "This group doesn’t exist."
+                    message: "This group doesn't exist."
                 )
                 return
             }
@@ -132,7 +138,7 @@ class GroupsViewModel: ObservableObject {
             let name = snapshot.data()?["name"] as? String ?? "Group"
             joinResult = .success(
                 title: "🎉 Joined \(name)!",
-                message: "You’re now part of \(name)."
+                message: "You're now part of \(name)."
             )
         } catch {
             joinResult = .failure(
@@ -156,7 +162,7 @@ class GroupsViewModel: ObservableObject {
             case .missingUser:
                 return "You must be signed in to share."
             case .groupNotFound:
-                return "The group you’re trying to share to doesn’t exist."
+                return "The group you're trying to share to doesn't exist."
             case .duplicateIdea:
                 return "This idea already exists in this group."
             case .writeFailed(let underlying):
@@ -196,9 +202,10 @@ class GroupsViewModel: ObservableObject {
         let record = GroupIdea(
             id: idea.id,
             dateIdea: idea.summary,
-            videoUrl: idea.video_url,
+            videoUrl: idea.cloudFrontVideoURL,
             originalSourceUrl: idea.original_source_url,
             thumbnailB64: idea.thumbnail_b64,
+            videoMetadata: idea.videoMetadata,
             addedBy: uid,
             addedAt: Date()
         )

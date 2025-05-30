@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import UIKit
 
 /// Represents either a success or error toast, carrying its message.
 enum ToastState: Equatable {
@@ -93,7 +94,8 @@ struct ToastModifier: ViewModifier {
             }
         }
         .onChange(of: toast) { _, newValue in
-            guard newValue != nil else { return }
+            guard let newValue = newValue else { return }
+            HapticFeedbacks.soft()
             if let delay = toast?.autoDismissAfter {
                 DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
                     withAnimation { toast = nil }

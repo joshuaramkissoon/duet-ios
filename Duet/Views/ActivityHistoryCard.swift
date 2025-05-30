@@ -14,17 +14,31 @@ struct ActivityHistoryCard: View {
     @EnvironmentObject private var authVM: AuthenticationViewModel
     let activity: DateIdeaResponse
     var showAuthor: Bool = false
+    var showReactionsBar: Bool = true
     var author: User? = nil
     var sharedAt: Date? = nil
     var onRemove: (() async -> Void)? = nil
+    var groupId: String? = nil
     
     @State private var player: AVPlayer?
     @State private var looping: LoopingPlayer?
     @State private var isActive = false
     @State private var showVideo = false
+    @StateObject private var commentsViewModel: CommentsViewModel
+
+    init(activity: DateIdeaResponse, showAuthor: Bool = false, showReactionsBar: Bool = true, author: User? = nil, sharedAt: Date? = nil, onRemove: (() async -> Void)? = nil, groupId: String? = nil) {
+        self.activity = activity
+        self.showAuthor = showAuthor
+        self.showReactionsBar = showReactionsBar
+        self.author = author
+        self.sharedAt = sharedAt
+        self.onRemove = onRemove
+        self.groupId = groupId
+        self._commentsViewModel = StateObject(wrappedValue: CommentsViewModel(ideaId: activity.id, groupId: groupId))
+    }
 
     var body: some View {
-        NavigationLink(destination: DateIdeaDetailView(dateIdea: activity, viewModel: DateIdeaViewModel(toast: toast, videoUrl: activity.video_url))) {
+        NavigationLink(destination: DateIdeaDetailView(dateIdea: activity, groupId: groupId, viewModel: DateIdeaViewModel(toast: toast, videoUrl: activity.cloudFrontVideoURL))) {
             cardContent
         }
         .buttonStyle(.plain)
@@ -42,11 +56,11 @@ struct ActivityHistoryCard: View {
     private var videoThumbnail: some View {
         Group {
             if let tb64 = activity.thumbnail_b64 {
-                Base64ImageView(base64String: tb64)
+                Base64ImageView(base64String: tb64, thumbWidth: videoWidth, thumbHeight: videoHeight)
                     .opacity(1)
             }
             else {
-                PlaceholderImageView()
+                PlaceholderImageView(thumbWidth: videoWidth, thumbHeight: videoHeight)
             }
         }
     }
@@ -97,52 +111,84 @@ struct ActivityHistoryCard: View {
             
             HStack(alignment: .top, spacing: 12) {
                 ZStack {
-                    if let player {
+                    // Video shows only when it's actively playing.
+                    if isActive, let player {
                         VideoPlayer(player: player)
                             .clipShape(RoundedRectangle(cornerRadius: 12))
                             .shadow(color: .black.opacity(0.1), radius: 5, x: 0, y: 3)
-                            .opacity(isActive ? 1 : 0)
+                            .opacity(showVideo ? 1 : 0)
                     }
-                    if !showVideo {
-                        // Cheap thumbnail while video offscreen if needed
+
+                    // Thumbnail (or placeholder) should be visible whenever the video isn't currently visible/playing.
+                    if !isActive || !showVideo {
                         videoThumbnail
                     }
                 }
-                .frame(width: 140, height: 140 * 16/9)
+                .frame(width: videoWidth, height: videoHeight)
                 .overlay(
                     VisibilityDetector { visible in
                         Task { await updateActivity(visible: visible) }
                     }
                 )
 
-                VStack(alignment: .leading, spacing: 8) {
-                    Text(activity.summary.title)
-                        .font(.headline)
-                        .fontWeight(.semibold)
-                        .lineLimit(3)
-                        .fixedSize(horizontal: false, vertical: true)
-
-                    Label(activity.summary.location, systemImage: "mappin.and.ellipse")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-
-                    VStack(alignment: .leading, spacing: 6) {
-                        CategoryPill(text: activity.summary.activity.title, icon: activity.summary.activity.icon)
-                        CategoryPill(text: activity.summary.cost_level.displayName, icon: activity.summary.cost_level.icon)
-                    }
-                }
-                .layoutPriority(1)
+                Spacer()
             }
 
-            Text(activity.summary.summary)
+            Text(activity.summary.title)
+                .font(.headline)
+                .fontWeight(.semibold)
+                .lineLimit(3)
+                .fixedSize(horizontal: false, vertical: true)
+
+            if activity.summary.content_type != .recipe {
+                Label(activity.summary.location, systemImage: "mappin.and.ellipse")
+                    .font(.subheadline)
+                    .foregroundColor(.appPrimary)
+            }
+            
+            Text(activity.summary.sales_pitch)
                 .font(.subheadline)
                 .foregroundColor(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
             HStack(spacing: 6) {
-                ForEach(activity.summary.tags.prefix(3), id: \.title) { tag in
-                    CategoryPill(text: tag.title, icon: tag.icon)
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 6) {
+                        ForEach(activity.summary.tags.prefix(3), id: \.title) { tag in
+                            CategoryPill(text: tag.title, icon: tag.icon)
+                        }
+                    }
+                    .padding(.leading, 16)
+                    .padding(.trailing, 16)
                 }
+                .padding(.leading, -16)
+                .padding(.trailing, -16)
+            }
+
+            // Reactions and Comments bar
+            if showReactionsBar {
+                HStack(spacing: 16) {
+                    ReactionBar(ideaId: activity.id, groupId: groupId)
+                    
+                    // Comment icon with count - tappable to scroll to comments
+                    NavigationLink(destination: DateIdeaDetailView(dateIdea: activity, groupId: groupId, scrollToComments: true, viewModel: DateIdeaViewModel(toast: toast, videoUrl: activity.cloudFrontVideoURL))) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "message")
+                                .font(.title3)
+                                .foregroundColor(.secondary)
+                            
+                            if commentsViewModel.comments.count > 0 {
+                                Text("\(commentsViewModel.comments.count)")
+                                    .font(.subheadline)
+                                    .fontWeight(.medium)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                        .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                        }
+                        .buttonStyle(.plain)
+                    }
             }
         }
         .padding()
@@ -169,29 +215,6 @@ struct ActivityHistoryCard: View {
         )
     }
     
-//    @MainActor
-//    private func updateActivity(visible: Bool) async {
-//        guard visible else {
-//            isActive = false
-//            return
-//        }
-//        
-//        if looping == nil {
-//            let q = SmallPlayerPool.shared.obtain()
-//            
-//            let local = try? await VideoCache.shared.localFile(for: URL(string: activity.video_url)!)
-//            guard let local else { return }
-//            let asset = try? await AssetPool.shared.asset(for: local)
-//            let item  = AVPlayerItem(asset: asset!)
-//            
-//            looping = LoopingPlayer(player: q, item: item)       // keeps looper
-//            q.isMuted = true
-//            q.play()
-//            player = q                                           // drive VideoPlayer
-//        }
-//        isActive = true
-//    }
-    
     @MainActor
     private func stopPlayback() {
         if let lp = looping {
@@ -217,7 +240,7 @@ struct ActivityHistoryCard: View {
         Task {               // runs on a background executor by default
             do {
                 // 1️⃣  Fetch or download file (inside VideoCache actor)
-                guard let remote = URL(string: activity.video_url) else { return }
+                guard let remote = URL(string: activity.cloudFrontVideoURL) else { return }
                 let local = try await VideoCache.shared.localFile(for: remote)
 
                 // 2️⃣  Get (or build) asset — heavy work is inside AssetPool actor
@@ -247,6 +270,25 @@ struct ActivityHistoryCard: View {
         }
     }
 
+    // MARK: - Computed Properties
+    
+    private var videoWidth: CGFloat {
+        if let meta = activity.videoMetadata, meta.isLandscape {
+            // Fill most of the card width when landscape, leaving some padding
+            return UIScreen.main.bounds.width - 32 - 60 // card width minus side & internal paddings
+        } else {
+            return 140 // default portrait/unknown width
+        }
+    }
+
+    private var videoHeight: CGFloat {
+        // Use metadata ratio if available; otherwise default to 16:9 using the computed width
+        if let metadata = activity.videoMetadata {
+            return videoWidth / metadata.aspectRatio
+        } else {
+            return videoWidth * 9 / 16
+        }
+    }
 }
 
 
@@ -293,6 +335,6 @@ struct RoundedCorner: Shape {
         tags: [Tag(title: "Romantic", icon: "heart.fill"), Tag(title: "relaxing", icon: "moon"), Tag(title: "nature", icon: "leaf")],
         suggested_itinerary: []
     )
-    ActivityHistoryCard(activity: DateIdeaResponse(id: "", summary: mockDateIdea, title: mockDateIdea.title, description: "desc", thumbnail_b64: nil, thumbnail_url: nil, video_url: "", original_source_url: nil))
+    ActivityHistoryCard(activity: DateIdeaResponse(id: "", summary: mockDateIdea, title: mockDateIdea.title, description: "desc", thumbnail_b64: nil, thumbnail_url: nil, video_url: "", videoMetadata: VideoMetadata(ratio_width: 16, ratio_height: 9), original_source_url: nil, user_id: nil, user_name: nil, created_at: nil))
         .environmentObject(ToastManager())
 }

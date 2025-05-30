@@ -33,7 +33,7 @@ struct ActivityHistoryView: View {
                         }
                     }
                 }
-                .padding(.horizontal, 30)
+                .padding(.horizontal)
                 .padding(.top, 20)
                 
                 if viewModel.activities.isEmpty && !viewModel.isLoading {
@@ -43,6 +43,7 @@ struct ActivityHistoryView: View {
                 }
             }
         }
+        .scrollDismissesKeyboard(.interactively)
     }
     
     @ViewBuilder
@@ -68,10 +69,10 @@ struct ActivityHistoryView: View {
                 .font(.largeTitle)
                 .foregroundColor(.appPrimary)
             
-            Text("No saved ideas yet")
+            Text("No recent ideas yet")
                 .font(.headline)
             
-            Text("Ideas you save will appear here")
+            Text("Your recent ideas will appear here")
                 .font(.subheadline)
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)
@@ -92,7 +93,7 @@ struct ActivityDetailLoader: View {
                 ProgressView()
                     .scaleEffect(1.2)
             } else if let dateIdea = viewModel.dateIdea {
-                DateIdeaDetailView(dateIdea: dateIdea, viewModel: DateIdeaViewModel(toast: toast, videoUrl: dateIdea.video_url))
+                DateIdeaDetailView(dateIdea: dateIdea, viewModel: DateIdeaViewModel(toast: toast, videoUrl: dateIdea.cloudFrontVideoURL))
             } else if let error = viewModel.error {
                 VStack(spacing: 16) {
                     Image(systemName: "exclamationmark.triangle")
@@ -140,7 +141,9 @@ struct ActivityDetailLoader: View {
         tags: [Tag(title: "Romantic", icon: "heart.fill"), Tag(title: "relaxing", icon: "moon"), Tag(title: "nature", icon: "leaf")],
         suggested_itinerary: []
     )
-    let res = DateIdeaResponse(id: "", summary: mockDateIdea, title: "Title", description: "Desc", thumbnail_b64: nil, thumbnail_url: nil, video_url: "", original_source_url: nil)
+    let res = DateIdeaResponse(id: "", summary: mockDateIdea, title: "Title", description: "Desc", thumbnail_b64: nil, thumbnail_url: nil, video_url: "", videoMetadata: VideoMetadata(ratio_width: 9, ratio_height: 16), original_source_url: nil, user_id: nil, user_name: nil, created_at: nil)
     let vm = ActivityHistoryViewModel(activities: [res])
     ActivityHistoryView(viewModel: vm)
+        .environmentObject(ToastManager())
+        .withAppBackground()
 }

@@ -13,7 +13,7 @@ struct AuthenticationView: View {
     @EnvironmentObject private var vm: AuthenticationViewModel
     @EnvironmentObject private var groupsVM: GroupsViewModel
     @EnvironmentObject private var toast: ToastManager
-    @StateObject private var activityVM = ActivityHistoryViewModel()
+    @EnvironmentObject private var activityVM: ActivityHistoryViewModel
     @State private var showingError = false
     
     @ViewBuilder

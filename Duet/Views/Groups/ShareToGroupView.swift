@@ -73,7 +73,11 @@ struct ShareToGroupView: View {
                         // Thumbnail section
                         if let thumbnailB64 = idea.thumbnail_b64 {
                             VStack(spacing: 12) {
-                                Base64ImageView(base64String: thumbnailB64)
+                                Base64ImageView(
+                                    base64String: thumbnailB64,
+                                    thumbWidth: 200,
+                                    thumbHeight: 200 / (idea.videoMetadata?.aspectRatio ?? 16/9)
+                                )
                                 
                                 Text(idea.title)
                                     .font(.headline)
@@ -178,7 +182,7 @@ struct ShareToGroupView_Previews: PreviewProvider {
     static var previews: some View {
         
         ShareToGroupView(
-            idea: DateIdeaResponse(id: "id", summary: dateIdea, title: dateIdea.title, description: dateIdea.summary, thumbnail_b64: nil, thumbnail_url: nil, video_url: "http://example.com/video", original_source_url: nil),
+            idea: DateIdeaResponse(id: "id", summary: dateIdea, title: dateIdea.title, description: dateIdea.summary, thumbnail_b64: nil, thumbnail_url: nil, video_url: "http://example.com/video", videoMetadata: nil, original_source_url: nil, user_id: nil, user_name: nil, created_at: nil),
             isPresented: $showing,
             toastManager: ToastManager()
         )

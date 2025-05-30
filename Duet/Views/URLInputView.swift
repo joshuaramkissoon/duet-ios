@@ -25,12 +25,12 @@ struct URLInputView: View {
               .padding(.top, 20)
 
             
-            Text("Save your date ideas!")
+            Text("Save your ideas!")
                 .font(.title2)
                 .fontWeight(.medium)
                 .foregroundColor(.primary)
             
-            Text("Paste a TikTok or Instagram URL to curate your date idea")
+            Text("Paste any video URL to generate a new idea")
                 .font(.body)
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)
@@ -110,8 +110,6 @@ struct URLInputView: View {
             .frame(width: min(UIScreen.main.bounds.width - 48, 360))
             // let the inner content size itself vertically
             .fixedSize(horizontal: false, vertical: true)
-            
-            Spacer()
         }
     }
 }

@@ -8,13 +8,18 @@
 			<key>CFBundleTypeRole</key>
 			<string>Editor</string>
 			<key>CFBundleURLName</key>
-			<string>com.Duet.Duet</string>
+			<string>jram.Duet.Duet</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
 				<string>duet</string>
 			</array>
 		</dict>
 		<dict/>
+	</array>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>background-processing</string>
+		<string>background-fetch</string>
 	</array>
 </dict>
 </plist>

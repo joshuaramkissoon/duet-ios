@@ -11,7 +11,11 @@ struct Base64ImageView: View {
     let base64String: String
 
     var thumbWidth: CGFloat = 140
-    private var thumbHeight: CGFloat { thumbWidth * 16/9 }
+    var thumbHeight: CGFloat? = nil
+    
+    private var calculatedHeight: CGFloat {
+        thumbHeight ?? (thumbWidth * 9/16)  // Default to 16:9 if no height provided
+    }
 
     var body: some View {
         Group {
@@ -25,7 +29,7 @@ struct Base64ImageView: View {
                 Color.gray
             }
         }
-        .frame(width: thumbWidth, height: thumbHeight)
+        .frame(width: thumbWidth, height: calculatedHeight)
         .clipShape(RoundedRectangle(cornerRadius: 12))
         .shadow(color: .black.opacity(0.1), radius: 5, x: 0, y: 3)
     }
@@ -33,13 +37,17 @@ struct Base64ImageView: View {
 
 struct PlaceholderImageView: View {
     var thumbWidth: CGFloat = 140
-    private var thumbHeight: CGFloat { thumbWidth * 16/9 }
+    var thumbHeight: CGFloat? = nil
+    
+    private var calculatedHeight: CGFloat {
+        thumbHeight ?? (thumbWidth * 9/16)  // Default to 16:9 if no height provided
+    }
 
     var body: some View {
         Group {
             Color.gray
         }
-        .frame(width: thumbWidth, height: thumbHeight)
+        .frame(width: thumbWidth, height: calculatedHeight)
         .clipShape(RoundedRectangle(cornerRadius: 12))
         .shadow(color: .black.opacity(0.1), radius: 5, x: 0, y: 3)
     }

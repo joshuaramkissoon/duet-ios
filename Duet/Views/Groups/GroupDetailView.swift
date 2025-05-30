@@ -11,6 +11,8 @@ import AVKit
 struct GroupDetailView: View {
     @EnvironmentObject private var toast: ToastManager
     @EnvironmentObject private var authVM: AuthenticationViewModel
+    @EnvironmentObject private var processingManager: ProcessingManager
+    @EnvironmentObject private var activityVM: ActivityHistoryViewModel
     @Environment(\.dismiss) private var dismiss
     @StateObject var viewModel: GroupDetailViewModel
     @State private var showingShareSheet = false
@@ -18,6 +20,7 @@ struct GroupDetailView: View {
     @State private var showingRenameAlert = false
     @State private var renameText: String = ""
     @State private var showingEmojiSelection = false
+    @State private var showingURLInput = false
     
 
     init(group: DuetGroup) {
@@ -42,15 +45,39 @@ struct GroupDetailView: View {
             ScrollView {
                 VStack(spacing: 24) {
                     headerSection
-                    ideasSection
+                    
+                    // Prominent Add Video button (CTA)
+                    addVideoCTA
+                    
+                    // URL Input Section (stylish card)
+                    if showingURLInput {
+                        urlInputCard
+                            .transition(.asymmetric(
+                                insertion: .move(edge: .leading).combined(with: .opacity),
+                                removal: .move(edge: .trailing).combined(with: .opacity)
+                            ))
+                    }
+                    
+                    GroupIdeasView(viewModel: viewModel)
+                        .environmentObject(toast)
+                        .environmentObject(processingManager)
                 }
                 .padding(.top)
             }
+            .scrollDismissesKeyboard(.interactively)
             .navigationTitle("Group Details")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Menu {
+                        Button {
+                            withAnimation(.easeInOut(duration: 0.3)) {
+                                showingURLInput.toggle()
+                            }
+                        } label: {
+                            Label(showingURLInput ? "Hide URL Input" : "Add Video", systemImage: showingURLInput ? "minus.circle" : "plus.circle")
+                        }
+                        
                         if isOwner {
                             Button {
                                 // preset the text field to current name
@@ -96,8 +123,31 @@ struct GroupDetailView: View {
                 }
             }
             .onAppear {
+                // Configure the shared processing manager
+                processingManager.updateToast(toast)
+                
+                print("🔄 GroupDetailView appeared for group: \(viewModel.group.id ?? "unknown")")
+                
                 if !viewModel.hasLoaded {
+                    print("📱 Loading initial data for group")
                     viewModel.loadInitialData()
+                } else {
+                    // If already loaded, just start the ideas listener
+                    print("📱 Group already loaded, starting ideas listener")
+                    viewModel.startListeningToIdeas()
+                }
+                
+                // Start tracking group processing jobs
+                if let groupId = viewModel.group.id {
+                    processingManager.startListeningToGroupJobs(groupId: groupId)
+                }
+            }
+            .onDisappear {
+                // Only stop processing manager group tracking, not the ideas listener
+                // The ideas listener should persist for smooth navigation
+                if let groupId = viewModel.group.id {
+                    processingManager.stopListeningToGroupJobs(groupId: groupId)
+                    print("🛑 GroupDetailView disappeared - stopped processing manager tracking for group: \(groupId)")
                 }
             }
         }
@@ -168,6 +218,7 @@ private extension GroupDetailView {
                     Text(viewModel.group.name)
                         .multilineTextAlignment(.leading)
                         .font(.title)
+                        .foregroundColor(.midnightSlateSoft)
                         .bold()
                         .padding(.horizontal)
                 }
@@ -246,6 +297,7 @@ private extension GroupDetailView {
             HStack {
                 Text("Members")
                     .font(.title3)
+                    .foregroundColor(.midnightSlateSoft)
                     .fontWeight(.bold)
                     .padding(.leading)
                 Spacer()
@@ -312,57 +364,73 @@ private extension GroupDetailView {
         }
     }
 
-    var ideasSection: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("Shared Ideas")
-                .font(.title3)
-                .fontWeight(.bold)
-                .padding(.leading)
+    // New self-contained card
+    private var urlInputCard: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 14)
+                .fill(Color.white)
+                .shadow(color: Color.black.opacity(0.1), radius: 10, x: 0, y: 5)
 
-            if viewModel.ideas.isEmpty {
-                VStack(spacing: 12) {
-                    Image(systemName: "sparkles")
-                        .font(.largeTitle)
-                        .foregroundColor(.appPrimary)
-                    Text("No ideas shared yet")
+            VStack(spacing: 0) {
+                HStack {
+                    Text("Add Video")
                         .font(.headline)
-                    Text("When you share an idea to this group, it will appear in this list.")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal)
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 40)
-            } else {
-                LazyVStack(spacing: 16) {
-                    ForEach(viewModel.ideas, id: \.id) { idea in
-                        let dateIdeaRes = DateIdeaResponse.fromGroupIdea(idea)
-                        let author = viewModel.getAuthor(authorId: idea.addedBy)
-                        ActivityHistoryCard(activity: dateIdeaRes, showAuthor: true, author: author, sharedAt: idea.addedAt) {
-                            await removeIdea(ideaID: idea.id)
+                        .fontWeight(.semibold)
+                        .foregroundColor(Color.midnightSlateSoft)
+
+                    Spacer()
+
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.3)) {
+                            showingURLInput = false
                         }
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 20, weight: .semibold))
+                            .foregroundColor(.gray.opacity(0.6))
                     }
                 }
                 .padding()
+
+                Divider()
+
+                GroupURLInputView(
+                    processingManager: processingManager,
+                    groupId: viewModel.group.id ?? "",
+                    showCardBackground: false
+                )
+                .padding(.bottom)
             }
         }
-    }
-    
-    @MainActor
-    private func removeIdea(ideaID: String) async {
-        guard let id = viewModel.group.id else { return }
-        do {
-            try await viewModel.deleteIdea(
-                ideaId: ideaID,
-                fromGroup: id
-            )
-            toast.success("Idea removed")
-        } catch {
-            toast.error(error.localizedDescription)
-        }
+        .padding(.horizontal, 12)
     }
 
+    // NEW: Add-video CTA shown when URL input is hidden
+    @ViewBuilder
+    private var addVideoCTA: some View {
+        if !showingURLInput {
+            Button {
+                withAnimation(.easeInOut(duration: 0.3)) {
+                    showingURLInput.toggle()
+                }
+            } label: {
+                HStack {
+                    Spacer()
+                    Image(systemName: "plus.circle.fill")
+                        .font(.system(size: 20, weight: .bold))
+                    Text("Add Video")
+                        .fontWeight(.semibold)
+                    Spacer()
+                }
+                .padding()
+                .foregroundColor(.white)
+                .background(Color.appPrimary)
+                .cornerRadius(14)
+                .shadow(color: Color.black.opacity(0.15), radius: 5, x: 0, y: 3)
+            }
+            .padding(.horizontal)
+        }
+    }
 }
 
 final class MockGroupDetailViewModel: GroupDetailViewModel {
@@ -402,20 +470,26 @@ final class MockGroupDetailViewModel: GroupDetailViewModel {
             thumbnail_b64: "Stargazing with picnic vibes",
             thumbnail_url: "",
             video_url: "",
+            videoMetadata: nil,
             original_source_url: nil,
+            user_id: nil,
+            user_name: nil,
+            created_at: nil
         )
         self.ideas = [sampleIdea.toGroupIdea()]
         self.inviteLink = URL(string: "duet://join?groupId=mock-group")
     }
     
     override func loadMembers() { /* no-op */ }
-    override func loadIdeas()   { /* no-op */ }
-    override func invite()      { /* no-op */ }
+    override func startListeningToIdeas() { /* no-op */ }
+    override func stopListeningToIdeas() { /* no-op */ }
+    override func invite() { /* no-op */ }
 }
 
 
 #Preview {
-    GroupDetailView(viewModel: MockGroupDetailViewModel())
-        .environmentObject(ToastManager())
+    let toast = ToastManager()
+    return GroupDetailView(viewModel: MockGroupDetailViewModel())
+        .environmentObject(toast)
         .environmentObject(AuthenticationViewModel())
 }
