@@ -478,20 +478,22 @@ private extension GroupDetailView {
                     showingURLInput.toggle()
                 }
             } label: {
-                HStack {
-                    Spacer()
+                HStack(alignment: .center, spacing: 8) {
                     Image(systemName: "plus.circle.fill")
-                        .font(.system(size: 20, weight: .bold))
+                        .font(.system(size: 20))
+                        .foregroundColor(.appPrimary)
                     Text("Add Video")
-                        .fontWeight(.semibold)
-                    Spacer()
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                        .foregroundColor(.appPrimary)
                 }
-                .padding()
-                .foregroundColor(.white)
-                .background(Color.appPrimary)
-                .cornerRadius(14)
-                .shadow(color: Color.black.opacity(0.15), radius: 5, x: 0, y: 3)
+                .frame(maxWidth: .infinity)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 12)
+                .background(Color.appPrimaryLightBackground)
+                .cornerRadius(12)
             }
+            .buttonStyle(PlainButtonStyle())
             .padding(.horizontal)
         }
     }

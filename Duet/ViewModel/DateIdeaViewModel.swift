@@ -14,6 +14,7 @@ class DateIdeaViewModel: ObservableObject {
     @Published var dateIdea: DateIdea? = nil
     @Published var dateIdeaResponse: DateIdeaResponse? = nil
     @Published var isUpdatingRecipe: Bool = false
+    @Published var isUpdatingItinerary: Bool = false
     
     private var toast: ToastManager
     private weak var activityVM: ActivityHistoryViewModel?
@@ -138,7 +139,7 @@ class DateIdeaViewModel: ObservableObject {
                 await MainActor.run {
                     isUpdatingRecipe = false
                     updateLocalRecipeData(metadata: recipeMetadata, items: requiredItems)
-                    toast.success("Recipe updated successfully!")
+                    toast.success("Recipe updated!")
                 }
             } catch {
                 await MainActor.run {
@@ -154,6 +155,50 @@ class DateIdeaViewModel: ObservableObject {
         
     }
     
+    // MARK: - Itinerary Update Methods
+    
+    /// Updates itinerary for the current idea
+    /// - Parameters:
+    ///   - itineraryItems: The updated itinerary items
+    ///   - requiredItems: The updated required items/equipment list
+    ///   - groupId: The group ID if this is a shared group idea, nil for personal ideas
+    func updateItinerary(
+        ideaId: String,
+        itineraryItems: [ItineraryItem],
+        requiredItems: [String],
+        groupId: String? = nil
+    ) {
+        isUpdatingItinerary = true
+        toast.loading("Saving itinerary")
+        
+        Task {
+            do {
+                try await ItineraryService.shared.updateItinerary(
+                    ideaId: ideaId,
+                    groupId: groupId,
+                    itineraryItems: itineraryItems,
+                    requiredItems: requiredItems
+                )
+                
+                await MainActor.run {
+                    isUpdatingItinerary = false
+                    updateLocalItineraryData(items: itineraryItems, equipment: requiredItems)
+                    toast.success("Itinerary updated!")
+                }
+            } catch {
+                await MainActor.run {
+                    isUpdatingItinerary = false
+                    toast.error("Failed to update itinerary: \(error.localizedDescription)")
+                }
+            }
+        }
+    }
+    
+    /// Handles itinerary edit cancellation
+    func cancelItineraryEdit() {
+        
+    }
+    
     // MARK: - Private Helper Methods
     
     /// Updates local data after successful server update
@@ -164,6 +209,35 @@ class DateIdeaViewModel: ObservableObject {
         var updatedSummary = response.summary
         updatedSummary.recipe_metadata = metadata
         updatedSummary.required_items = items
+        
+        // Create updated response
+        let updatedResponse = DateIdeaResponse(
+            id: response.id,
+            summary: updatedSummary,
+            title: response.title,
+            description: response.description,
+            thumbnail_b64: response.thumbnail_b64,
+            thumbnail_url: response.thumbnail_url,
+            video_url: response.video_url,
+            videoMetadata: response.videoMetadata,
+            original_source_url: response.original_source_url,
+            user_id: response.user_id,
+            user_name: response.user_name,
+            created_at: response.created_at
+        )
+        
+        dateIdeaResponse = updatedResponse
+        dateIdea = updatedSummary
+    }
+    
+    /// Updates local data after successful itinerary update
+    private func updateLocalItineraryData(items: [ItineraryItem], equipment: [String]) {
+        guard var response = dateIdeaResponse else { return }
+        
+        // Update the local data to reflect the changes
+        var updatedSummary = response.summary
+        updatedSummary.suggested_itinerary = items
+        updatedSummary.required_items = equipment
         
         // Create updated response
         let updatedResponse = DateIdeaResponse(

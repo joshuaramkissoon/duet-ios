@@ -311,6 +311,10 @@ struct CreateGroupSheet: View {
             }
         }
     }
+
+    private var isValidInput: Bool {
+        !name.trimmingCharacters(in: .whitespaces).isEmpty
+    }
     
     var body: some View {
        NavigationView {
@@ -375,17 +379,17 @@ struct CreateGroupSheet: View {
                    }) {
                        Text("Create Group")
                            .fontWeight(.semibold)
-                           .foregroundColor(.white)
+                           .foregroundColor(isValidInput ? .appPrimary : .white)
                            .padding()
                            .frame(maxWidth: .infinity)
                            .background(
-                               name.trimmingCharacters(in: .whitespaces).isEmpty ?
-                               Color.gray : Color.appPrimary
+                               isValidInput ?
+                               Color.appPrimaryLightBackground : Color.gray
                            )
                            .cornerRadius(16)
                            .padding(.horizontal, 24)
                    }
-                   .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty)
+                   .disabled(!isValidInput)
                    .padding(.bottom, 24)
                }
            }

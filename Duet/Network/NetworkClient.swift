@@ -42,8 +42,8 @@ enum NetworkError: Error {
 
 class NetworkClient: NSObject {
     static let shared = NetworkClient()
-   let baseUrl = "https://duet-backend-490xp.kinsta.app" // Made public for ProcessingManager
-    // let baseUrl = "https://8dca7b206740.ngrok.app"
+//    let baseUrl = "https://duet-backend-490xp.kinsta.app" // Made public for ProcessingManager
+    let baseUrl = "https://8dca7b206740.ngrok.app"
     
     private override init() {}
     

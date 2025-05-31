@@ -10,12 +10,12 @@ import UIKit
 
 struct ItineraryItem: Identifiable, Codable {
     var id: String = UUID().uuidString
-    let time: String
-    let title: String
-    let activity: String
-    let duration: String?
-    let location: String?
-    let notes: String?
+    var time: String
+    var title: String
+    var activity: String
+    var duration: String?
+    var location: String?
+    var notes: String?
     
     // CodingKeys to handle the id that's not in JSON
     private enum CodingKeys: String, CodingKey {

@@ -33,19 +33,19 @@ struct DateIdeaDetailView: View {
         }
     }
     
-    /// Check if current user can edit this recipe
-    private var canEditRecipe: Bool {
+    /// Check if current user can edit this idea (recipes, itineraries, etc.)
+    private var canEdit: Bool {
         // Allow editing if it's a group idea (groupId is non-nil) OR current user is the owner
         if groupId != nil {
             return true
         }
         
         guard let currentUserId = authVM.user?.uid,
-              let recipeOwnerId = currentDateIdeaResponse.user_id else {
+              let ideaOwnerId = currentDateIdeaResponse.user_id else {
             return false
         }
         
-        return currentUserId == recipeOwnerId
+        return currentUserId == ideaOwnerId
     }
     
     var body: some View {
@@ -129,20 +129,50 @@ struct DateIdeaDetailView: View {
                         }
                         .padding(.horizontal)
                         
-                        // Required items (only show if not a recipe - recipes show this inside RecipeView)
+                        // Required items (only show if not a recipe and no itinerary - recipes and itineraries show this inside their views)
                         if !currentDateIdeaResponse.summary.required_items.isEmpty && (currentDateIdeaResponse.summary.suggested_itinerary == nil && currentDateIdeaResponse.summary.recipe_metadata == nil){
                             RequiredItemsSection(requiredItems: currentDateIdeaResponse.summary.required_items)
                                 .padding(.horizontal)
                         }
                         
-                        if let itinerary = currentDateIdeaResponse.summary.suggested_itinerary, !itinerary.isEmpty && currentDateIdeaResponse.summary.recipe_metadata == nil {
-                            ItineraryView(itineraryItems: itinerary, requiredItems: currentDateIdeaResponse.summary.required_items, totalDuration: currentDateIdeaResponse.summary.duration, location: currentDateIdeaResponse.summary.location)
+                        // Itinerary section
+                        if let itinerary = currentItinerary, !itinerary.isEmpty && currentDateIdeaResponse.summary.recipe_metadata == nil {
+                            if canEdit {
+                                EditableItineraryView(
+                                    itineraryItems: itinerary,
+                                    requiredItems: currentRequiredItems,
+                                    totalDuration: currentDateIdeaResponse.summary.duration,
+                                    location: currentDateIdeaResponse.summary.location,
+                                    onSave: { updatedItems, updatedEquipment in
+                                        viewModel.updateItinerary(
+                                            ideaId: currentDateIdeaResponse.id,
+                                            itineraryItems: updatedItems,
+                                            requiredItems: updatedEquipment,
+                                            groupId: groupId
+                                        )
+                                    },
+                                    onCancel: {
+                                        viewModel.cancelItineraryEdit()
+                                    }
+                                )
                                 .padding(.bottom, 16)
                                 .padding(.horizontal)
+                            } else {
+                                // Show read-only itinerary view if user cannot edit
+                                ItineraryView(
+                                    itineraryItems: itinerary,
+                                    requiredItems: currentRequiredItems,
+                                    totalDuration: currentDateIdeaResponse.summary.duration,
+                                    location: currentDateIdeaResponse.summary.location
+                                )
+                                .padding(.bottom, 16)
+                                .padding(.horizontal)
+                            }
                         }
                         
+                        // Recipe section
                         if let recipeMetadata = currentRecipeMetadata {
-                            if canEditRecipe {
+                            if canEdit {
                                 EditableRecipeView(
                                     recipeMetadata: recipeMetadata,
                                     requiredItems: currentRequiredItems,
@@ -172,19 +202,22 @@ struct DateIdeaDetailView: View {
                         Button(action: {
                             showShareSheet = true
                         }) {
-                            HStack {
-                                Spacer()
+                            HStack(alignment: .center, spacing: 8) {
                                 Image(systemName: "person.3.fill")
-                                    .font(.body.bold())
+                                    .font(.system(size: 20))
+                                    .foregroundColor(.appPrimary)
                                 Text("Share to Group")
-                                    .fontWeight(.semibold)
-                                Spacer()
+                                    .font(.subheadline)
+                                    .fontWeight(.medium)
+                                    .foregroundColor(.appPrimary)
                             }
-                            .padding()
-                            .background(Color.appPrimary)
-                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 12)
+                            .background(Color.appPrimaryLightBackground)
                             .cornerRadius(12)
                         }
+                        .buttonStyle(PlainButtonStyle())
                         .padding(.vertical, 8)
                         .padding(.horizontal)
 
@@ -253,6 +286,11 @@ struct DateIdeaDetailView: View {
     /// Returns the current recipe metadata, prioritizing updated data from view model
     private var currentRecipeMetadata: RecipeMetadata? {
         return viewModel.dateIdeaResponse?.summary.recipe_metadata ?? dateIdea.summary.recipe_metadata
+    }
+    
+    /// Returns the current itinerary items, prioritizing updated data from view model
+    private var currentItinerary: [ItineraryItem]? {
+        return viewModel.dateIdeaResponse?.summary.suggested_itinerary ?? dateIdea.summary.suggested_itinerary
     }
     
     /// Returns the current required items, prioritizing updated data from view model
