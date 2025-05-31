@@ -13,8 +13,9 @@ class DateIdeaViewModel: ObservableObject {
     @Published var videoUrl: String = ""
     @Published var dateIdea: DateIdea? = nil
     @Published var dateIdeaResponse: DateIdeaResponse? = nil
+    @Published var isUpdatingRecipe: Bool = false
     
-    private let toast: ToastManager
+    private var toast: ToastManager
     private weak var activityVM: ActivityHistoryViewModel?
     private var processingManager: ProcessingManager?
     
@@ -26,8 +27,55 @@ class DateIdeaViewModel: ObservableObject {
         // ProcessingManager will be set externally to avoid MainActor issues
     }
     
+    /// Updates the toast manager - useful when the environment toast manager becomes available
+    func updateToastManager(_ newToast: ToastManager) {
+        self.toast = newToast
+    }
+    
     func setProcessingManager(_ manager: ProcessingManager) {
         self.processingManager = manager
+    }
+    
+    /// Sets the current date idea response for tracking updates
+    func setCurrentDateIdea(_ response: DateIdeaResponse) {
+        dateIdeaResponse = response
+        dateIdea = response.summary
+    }
+    
+    /// Fetches the latest activity data from the backend and updates if different
+    /// This runs in the background without showing a loading state
+    func fetchLatestActivityData(for activityId: String) {
+        Task {
+            do {
+                let latestData = try await NetworkClient.shared.getActivity(id: activityId)
+                
+                await MainActor.run {
+                    // Only update if the data has actually changed
+                    if let currentData = dateIdeaResponse, !areEqual(currentData, latestData) {
+                        dateIdeaResponse = latestData
+                        dateIdea = latestData.summary
+                        print("🔄 Updated activity data from backend")
+                    }
+                }
+            } catch {
+                // Silently fail for background fetch - don't show errors to user
+                print("⚠️ Background fetch failed for activity \(activityId): \(error.localizedDescription)")
+            }
+        }
+    }
+    
+    /// Compares two DateIdeaResponse objects to check if they're meaningfully different
+    private func areEqual(_ current: DateIdeaResponse, _ latest: DateIdeaResponse) -> Bool {
+        // Compare key fields that might change
+        return current.title == latest.title &&
+               current.description == latest.description &&
+               current.summary.summary == latest.summary.summary &&
+               current.summary.duration == latest.summary.duration &&
+               current.summary.location == latest.summary.location &&
+               current.summary.required_items == latest.summary.required_items &&
+               current.summary.recipe_metadata?.ingredients == latest.summary.recipe_metadata?.ingredients &&
+               current.summary.recipe_metadata?.instructions == latest.summary.recipe_metadata?.instructions &&
+               current.summary.suggested_itinerary?.count == latest.summary.suggested_itinerary?.count
     }
     
     func summariseVideo() {
@@ -60,6 +108,81 @@ class DateIdeaViewModel: ObservableObject {
                 }
             }
         }
+    }
+    
+    // MARK: - Recipe Update Methods
+    
+    /// Updates recipe metadata for the current idea
+    /// - Parameters:
+    ///   - recipeMetadata: The updated recipe metadata
+    ///   - requiredItems: The updated required items/equipment list
+    ///   - groupId: The group ID if this is a shared group idea, nil for personal ideas
+    func updateRecipe(
+        ideaId: String,
+        recipeMetadata: RecipeMetadata,
+        requiredItems: [String],
+        groupId: String? = nil
+    ) {
+        isUpdatingRecipe = true
+        toast.loading("Saving recipe")
+        
+        Task {
+            do {
+                try await RecipeService.shared.updateRecipeMetadata(
+                    ideaId: ideaId,
+                    groupId: groupId,
+                    recipeMetadata: recipeMetadata,
+                    requiredItems: requiredItems
+                )
+                
+                await MainActor.run {
+                    isUpdatingRecipe = false
+                    updateLocalRecipeData(metadata: recipeMetadata, items: requiredItems)
+                    toast.success("Recipe updated successfully!")
+                }
+            } catch {
+                await MainActor.run {
+                    isUpdatingRecipe = false
+                    toast.error("Failed to update recipe: \(error.localizedDescription)")
+                }
+            }
+        }
+    }
+    
+    /// Handles recipe edit cancellation
+    func cancelRecipeEdit() {
+        
+    }
+    
+    // MARK: - Private Helper Methods
+    
+    /// Updates local data after successful server update
+    private func updateLocalRecipeData(metadata: RecipeMetadata, items: [String]) {
+        guard var response = dateIdeaResponse else { return }
+        
+        // Update the local data to reflect the changes
+        var updatedSummary = response.summary
+        updatedSummary.recipe_metadata = metadata
+        updatedSummary.required_items = items
+        
+        // Create updated response
+        let updatedResponse = DateIdeaResponse(
+            id: response.id,
+            summary: updatedSummary,
+            title: response.title,
+            description: response.description,
+            thumbnail_b64: response.thumbnail_b64,
+            thumbnail_url: response.thumbnail_url,
+            video_url: response.video_url,
+            videoMetadata: response.videoMetadata,
+            original_source_url: response.original_source_url,
+            user_id: response.user_id,
+            user_name: response.user_name,
+            created_at: response.created_at
+        )
+        
+        dateIdeaResponse = updatedResponse
+        dateIdea = updatedSummary
     }
 
     // MARK: - Helper Methods

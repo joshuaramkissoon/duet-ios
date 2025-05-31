@@ -25,7 +25,8 @@ struct ActivityHistoryCard: View {
     @State private var isActive = false
     @State private var showVideo = false
     @StateObject private var commentsViewModel: CommentsViewModel
-
+    @StateObject private var dateIdeaViewModel: DateIdeaViewModel
+    
     init(activity: DateIdeaResponse, showAuthor: Bool = false, showReactionsBar: Bool = true, author: User? = nil, sharedAt: Date? = nil, onRemove: (() async -> Void)? = nil, groupId: String? = nil) {
         self.activity = activity
         self.showAuthor = showAuthor
@@ -35,10 +36,12 @@ struct ActivityHistoryCard: View {
         self.onRemove = onRemove
         self.groupId = groupId
         self._commentsViewModel = StateObject(wrappedValue: CommentsViewModel(ideaId: activity.id, groupId: groupId))
+        // Create DateIdeaViewModel with placeholder toast manager - will be updated with environment manager
+        self._dateIdeaViewModel = StateObject(wrappedValue: DateIdeaViewModel(toast: ToastManager(), videoUrl: activity.cloudFrontVideoURL))
     }
 
     var body: some View {
-        NavigationLink(destination: DateIdeaDetailView(dateIdea: activity, groupId: groupId, viewModel: DateIdeaViewModel(toast: toast, videoUrl: activity.cloudFrontVideoURL))) {
+        NavigationLink(destination: DateIdeaDetailView(dateIdea: activity, groupId: groupId, viewModel: dateIdeaViewModel)) {
             cardContent
         }
         .buttonStyle(.plain)
@@ -50,6 +53,10 @@ struct ActivityHistoryCard: View {
                     Label("Remove from group", systemImage: "trash")
                 }
             }
+        }
+        .onAppear {
+            // Update the viewModel with the correct toast manager from environment
+            dateIdeaViewModel.updateToastManager(toast)
         }
     }
     
@@ -171,7 +178,7 @@ struct ActivityHistoryCard: View {
                     ReactionBar(ideaId: activity.id, groupId: groupId)
                     
                     // Comment icon with count - tappable to scroll to comments
-                    NavigationLink(destination: DateIdeaDetailView(dateIdea: activity, groupId: groupId, scrollToComments: true, viewModel: DateIdeaViewModel(toast: toast, videoUrl: activity.cloudFrontVideoURL))) {
+                    NavigationLink(destination: DateIdeaDetailView(dateIdea: activity, groupId: groupId, scrollToComments: true, viewModel: dateIdeaViewModel)) {
                         HStack(spacing: 4) {
                             Image(systemName: "message")
                                 .font(.title3)

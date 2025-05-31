@@ -86,6 +86,12 @@ struct ActivityDetailLoader: View {
     let activityId: String
     @EnvironmentObject private var toast: ToastManager
     @StateObject private var viewModel = ActivityDetailViewModel()
+    @StateObject private var dateIdeaViewModel: DateIdeaViewModel
+    
+    init(activityId: String) {
+        self.activityId = activityId
+        self._dateIdeaViewModel = StateObject(wrappedValue: DateIdeaViewModel(toast: ToastManager(), videoUrl: ""))
+    }
     
     var body: some View {
         ZStack {
@@ -93,7 +99,12 @@ struct ActivityDetailLoader: View {
                 ProgressView()
                     .scaleEffect(1.2)
             } else if let dateIdea = viewModel.dateIdea {
-                DateIdeaDetailView(dateIdea: dateIdea, viewModel: DateIdeaViewModel(toast: toast, videoUrl: dateIdea.cloudFrontVideoURL))
+                DateIdeaDetailView(dateIdea: dateIdea, viewModel: dateIdeaViewModel)
+                    .onAppear {
+                        // Update video URL and toast manager when dateIdea becomes available
+                        dateIdeaViewModel.videoUrl = dateIdea.cloudFrontVideoURL
+                        dateIdeaViewModel.updateToastManager(toast)
+                    }
             } else if let error = viewModel.error {
                 VStack(spacing: 16) {
                     Image(systemName: "exclamationmark.triangle")
@@ -123,6 +134,8 @@ struct ActivityDetailLoader: View {
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
             viewModel.loadActivity(id: activityId)
+            // Update the dateIdeaViewModel with the correct toast manager
+            dateIdeaViewModel.updateToastManager(toast)
         }
     }
 }

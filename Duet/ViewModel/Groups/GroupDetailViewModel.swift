@@ -271,15 +271,12 @@ class GroupDetailViewModel: ObservableObject {
     // MARK: - Ideas Listener
     
     func startListeningToIdeas() {
-        guard let groupId = group.id else { 
-            print("❌ Cannot start ideas listener: no group ID")
+        guard let groupId = group.id else {
             return 
         }
         
         // Stop any existing listener first
         stopListeningToIdeas()
-        
-        print("🔄 Starting to listen for group ideas for group: \(groupId)")
         
         ideasListener = db.collection("groups")
             .document(groupId)
@@ -287,7 +284,6 @@ class GroupDetailViewModel: ObservableObject {
             .order(by: "addedAt", descending: true)
             .addSnapshotListener { [weak self] snapshot, error in
                 if let error = error {
-                    print("❌ Ideas listener error for group \(groupId): \(error)")
                     Task { @MainActor in
                         self?.errorMessage = error.localizedDescription
                     }
@@ -295,45 +291,33 @@ class GroupDetailViewModel: ObservableObject {
                 }
                 
                 guard let snapshot = snapshot else {
-                    print("❌ No snapshot received for group ideas")
                     return
                 }
                 
-                print("📄 Received snapshot for group \(groupId) with \(snapshot.documents.count) idea documents")
-                print("📄 Snapshot metadata - hasPendingWrites: \(snapshot.metadata.hasPendingWrites), isFromCache: \(snapshot.metadata.isFromCache)")
-                
                 let fetchedIdeas: [GroupIdea] = snapshot.documents.compactMap { doc in
                     do {
-                        let idea = try doc.data(as: GroupIdea.self)
-                        print("✅ Parsed idea: \(idea.id) - \(idea.dateIdea.title) - added by: \(idea.addedBy)")
-                        return idea
+                        return try doc.data(as: GroupIdea.self)
                     } catch {
-                        print("❌ Failed to parse group idea from doc \(doc.documentID): \(error)")
                         return nil
                     }
                 }
-                
-                print("🎯 Total parsed ideas for group \(groupId): \(fetchedIdeas.count)")
                 
                 Task { @MainActor in
                     let oldCount = self?.ideas.count ?? 0
                     self?.ideas = fetchedIdeas
                     self?.hasLoaded = true
                     let newCount = fetchedIdeas.count
-                    print("📱 Updated group ideas: \(oldCount) -> \(newCount) ideas")
                     
                     // Force UI update by triggering objectWillChange
                     self?.objectWillChange.send()
                 }
             }
         
-        print("✅ Ideas listener set up for group: \(groupId)")
     }
     
     func stopListeningToIdeas() {
         ideasListener?.remove()
         ideasListener = nil
-        print("🛑 Stopped listening to group ideas")
     }
     
     deinit {

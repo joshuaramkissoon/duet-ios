@@ -16,7 +16,6 @@ class ProcessingManager: ObservableObject {
     init(toast: ToastManager, activityVM: ActivityHistoryViewModel? = nil) {
         self.toast = toast
         self.activityVM = activityVM
-        print("🆕 ProcessingManager created - \(Unmanaged.passUnretained(self).toOpaque())")
     }
     
     // Method to update the toast reference (useful for environment objects)
@@ -32,12 +31,9 @@ class ProcessingManager: ObservableObject {
     // MARK: - User Processing Jobs
     
     func startListeningToUserJobs() {
-        guard let userId = Auth.auth().currentUser?.uid else { 
-            print("❌ No authenticated user for processing jobs listener")
+        guard let userId = Auth.auth().currentUser?.uid else {
             return 
         }
-        
-        print("🔄 Starting to listen for processing jobs for user: \(userId)")
         
         userListener = db.collection("processing_status")
             .whereField("user_id", isEqualTo: userId)
@@ -48,38 +44,17 @@ class ProcessingManager: ObservableObject {
                 guard let self = self else { return }
                 
                 if let error = error {
-                    print("❌ User processing listener error: \(error)")
                     return
                 }
                 
-                guard let snapshot = snapshot else { 
-                    print("❌ No snapshot in processing_status listener")
+                guard let snapshot = snapshot else {
                     return 
-                }
-                
-                print("📄 Received snapshot with \(snapshot.documents.count) documents")
-                print("📄 Document changes: \(snapshot.documentChanges.count)")
-                
-                // Debug document changes
-                for change in snapshot.documentChanges {
-                    switch change.type {
-                    case .added:
-                        print("📄 Document added: \(change.document.documentID)")
-                    case .modified:
-                        print("📄 Document modified: \(change.document.documentID)")
-                    case .removed:
-                        print("📄 Document removed: \(change.document.documentID)")
-                    }
                 }
                 
                 let jobs = snapshot.documents.compactMap { doc -> ProcessingJob? in
                     do {
-                        let job = try doc.data(as: ProcessingJob.self)
-                        print("✅ Parsed user job: \(job.id ?? "unknown") - \(job.status) - \(job.url) - group: \(job.groupId ?? "none")")
-                        print("📝 Progress message: '\(job.progressMessage)' (isEmpty: \(job.progressMessage.isEmpty))")
-                        return job
+                        return try doc.data(as: ProcessingJob.self)
                     } catch {
-                        print("❌ Failed to parse processing job: \(error)")
                         return nil
                     }
                 }
@@ -92,17 +67,9 @@ class ProcessingManager: ObservableObject {
                     return date1 > date2
                 }
                 
-                print("🎯 Total parsed user jobs (including group jobs): \(sortedJobs.count)")
-                
                 Task { @MainActor in
                     let oldUserJobsCount = self.userProcessingJobs.count
                     self.userProcessingJobs = sortedJobs
-                    print("📱 Updated userProcessingJobs: \(oldUserJobsCount) -> \(self.userProcessingJobs.count)")
-                    
-                    // Debug: Show breakdown of jobs
-                    let userOnlyJobs = sortedJobs.filter { $0.groupId == nil }
-                    let groupJobs = sortedJobs.filter { $0.groupId != nil }
-                    print("📊 Job breakdown - User-only: \(userOnlyJobs.count), Group jobs: \(groupJobs.count)")
                     
                     // Also update group processing jobs to keep them in sync
                     self.updateGroupJobsFromUserJobs(sortedJobs)
@@ -122,9 +89,6 @@ class ProcessingManager: ObservableObject {
     
     @MainActor
     private func updateGroupJobsFromUserJobs(_ userJobs: [ProcessingJob]) {
-        print("🔄 updateGroupJobsFromUserJobs called with \(userJobs.count) user jobs")
-        print("🔄 Currently tracking groups: \(Array(groupListeners.keys))")
-        
         // Update group processing jobs based on user jobs to keep them in sync
         var newGroupJobs: [String: [ProcessingJob]] = [:]
         
@@ -134,11 +98,8 @@ class ProcessingManager: ObservableObject {
                     newGroupJobs[groupId] = []
                 }
                 newGroupJobs[groupId]?.append(job)
-                print("🔄 Found job for group \(groupId): \(job.id ?? "unknown") - \(job.status)")
             }
         }
-        
-        print("🔄 Found jobs for groups: \(newGroupJobs.keys.sorted())")
         
         // Track if we made any changes to trigger UI update
         var didUpdateAnyGroup = false
@@ -149,8 +110,6 @@ class ProcessingManager: ObservableObject {
             let oldCount = groupProcessingJobs[groupId]?.count ?? 0
             groupProcessingJobs[groupId] = jobs
             let newCount = jobs.count
-            print("📱 Synced group processing jobs for \(groupId): \(oldCount) -> \(newCount) jobs")
-            print("📱   Jobs synced: \(jobs.map { "\($0.id ?? "unknown")-\($0.status)" }.joined(separator: ", "))")
             didUpdateAnyGroup = true
         }
         
@@ -159,14 +118,12 @@ class ProcessingManager: ObservableObject {
             if newGroupJobs[groupId] == nil {
                 let oldCount = groupProcessingJobs[groupId]?.count ?? 0
                 groupProcessingJobs[groupId] = []
-                print("📱 Cleared group processing jobs for \(groupId): \(oldCount) -> 0 jobs")
                 didUpdateAnyGroup = true
             }
         }
         
         // Explicitly trigger UI update if we made changes
         if didUpdateAnyGroup {
-            print("🔄 Triggering objectWillChange for group processing jobs update")
             objectWillChange.send()
         }
     }
@@ -175,7 +132,6 @@ class ProcessingManager: ObservableObject {
         Task { @MainActor in
             userListener?.remove()
             userListener = nil
-            print("🛑 Stopped user processing jobs listener")
         }
     }
     
@@ -185,12 +141,9 @@ class ProcessingManager: ObservableObject {
         guard !groupId.isEmpty else { return }
         
         // Don't create duplicate listeners
-        if groupListeners[groupId] != nil { 
-            print("🔄 Already tracking group processing jobs for group: \(groupId)")
+        if groupListeners[groupId] != nil {
             return 
         }
-        
-        print("🔄 Registering group processing jobs tracking for group: \(groupId)")
         
         // Initialize the group jobs array if it doesn't exist
         if groupProcessingJobs[groupId] == nil {
@@ -201,20 +154,15 @@ class ProcessingManager: ObservableObject {
         // The user listener will populate the data and updateGroupJobsFromUserJobs will sync it
         groupListeners[groupId] = nil // Placeholder to track we're monitoring this group
         
-        print("✅ Started tracking group processing jobs for group: \(groupId)")
-        
         // Immediately sync any existing jobs for this group from user jobs
         Task { @MainActor in
-            print("🔄 Syncing existing jobs for newly tracked group: \(groupId)")
             updateGroupJobsFromUserJobs(userProcessingJobs)
             
             // Debug: Check if jobs were found
             let jobCount = groupProcessingJobs[groupId]?.count ?? 0
-            print("📊 After sync, group \(groupId) has \(jobCount) jobs")
             
             // Explicitly trigger UI update
             if jobCount > 0 {
-                print("🔄 Triggering objectWillChange for newly tracked group with jobs")
                 objectWillChange.send()
             }
         }
@@ -225,7 +173,6 @@ class ProcessingManager: ObservableObject {
         Task { @MainActor in
             groupListeners.removeValue(forKey: groupId)
             groupProcessingJobs.removeValue(forKey: groupId)
-            print("🛑 Stopped tracking group processing jobs for group: \(groupId)")
         }
     }
     
@@ -234,7 +181,6 @@ class ProcessingManager: ObservableObject {
         Task { @MainActor in
             groupListeners.removeAll()
             groupProcessingJobs.removeAll()
-            print("🛑 Stopped tracking all group processing jobs")
         }
     }
     
@@ -324,33 +270,22 @@ class ProcessingManager: ObservableObject {
     func getActiveUserJobs() -> [ProcessingJob] {
         // Only return jobs that don't have a group_id (user-specific jobs)
         let activeUserJobs = userProcessingJobs.filter { $0.isActive && $0.groupId == nil }
-        print("🔍 getActiveUserJobs() returning \(activeUserJobs.count) jobs from \(userProcessingJobs.count) total user jobs")
         return activeUserJobs
     }
     
     func getActiveGroupJobs(for groupId: String) -> [ProcessingJob] {
         let activeGroupJobs = groupProcessingJobs[groupId]?.filter { $0.isActive } ?? []
-        print("🔍 getActiveGroupJobs(\(groupId)) returning \(activeGroupJobs.count) jobs from \(groupProcessingJobs[groupId]?.count ?? 0) total group jobs")
         return activeGroupJobs
     }
     
     func getAllUserJobs() -> [ProcessingJob] {
         // Only return jobs that don't have a group_id (user-specific jobs)
         let allUserJobs = userProcessingJobs.filter { $0.groupId == nil }
-        print("🔍 getAllUserJobs() returning \(allUserJobs.count) jobs from \(userProcessingJobs.count) total user jobs")
         return allUserJobs
     }
     
     func getAllGroupJobs(for groupId: String) -> [ProcessingJob] {
         let allGroupJobs = groupProcessingJobs[groupId] ?? []
-        print("🔍 getAllGroupJobs(\(groupId)) returning \(allGroupJobs.count) jobs")
-        print("🔍 groupProcessingJobs keys: \(Array(groupProcessingJobs.keys))")
-        print("🔍 groupListeners keys: \(Array(groupListeners.keys))")
-        if let jobs = groupProcessingJobs[groupId] {
-            for job in jobs {
-                print("🔍   - Job: \(job.id ?? "unknown") - \(job.status)")
-            }
-        }
         return allGroupJobs
     }
     
@@ -359,11 +294,9 @@ class ProcessingManager: ObservableObject {
             throw ProcessingError.invalidURL // Reusing existing error type
         }
         
-        print("🗑️ Attempting to remove processing job: \(jobId)")
         
         do {
             try await db.collection("processing_status").document(jobId).delete()
-            print("✅ Successfully removed processing job from Firestore: \(jobId)")
             
             // The Firestore listener should automatically update the arrays, but we also
             // prune *local* caches immediately so the UI refreshes without delay.
@@ -383,20 +316,15 @@ class ProcessingManager: ObservableObject {
                     }
                 }
 
-                print("🔄 Locally pruned job \(jobId). Remaining user jobs: \(self.userProcessingJobs.count)")
-
                 // Notify views that data changed so they can re-render immediately
                 self.objectWillChange.send()
             }
         } catch {
-            print("❌ Failed to remove processing job: \(error)")
             throw ProcessingError.networkError("Failed to remove processing job")
         }
     }
     
     deinit {
-        print("🗑️ ProcessingManager deinit called")
-        
         // Remove user listener
         userListener?.remove()
         userListener = nil
@@ -404,11 +332,8 @@ class ProcessingManager: ObservableObject {
         // Remove all group listeners (though they should be nil now)
         for (groupId, listener) in groupListeners {
             listener.remove()
-            print("🗑️ Removed listener for group: \(groupId)")
         }
         groupListeners.removeAll()
-        
-        print("🗑️ ProcessingManager cleanup completed")
     }
 }
 

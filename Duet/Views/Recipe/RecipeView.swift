@@ -13,6 +13,7 @@ struct RecipeView: View {
     
     @State private var isExpanded = false
     @State private var selectedTab: RecipeTab = .equipment
+    @State private var checkedIngredients: Set<Int> = [] // Persistent checklist state
     
     enum RecipeTab: String, CaseIterable {
         case equipment = "Equipment"
@@ -108,12 +109,15 @@ struct RecipeView: View {
                             
                         case .ingredients:
                             if let ingredients = recipeMetadata.ingredients, !ingredients.isEmpty {
-                                RecipeIngredientsSection(ingredients: ingredients)
-                                    .padding(.horizontal, 16)
-                                    .transition(.asymmetric(
-                                        insertion: .move(edge: .trailing).combined(with: .opacity),
-                                        removal: .move(edge: .leading).combined(with: .opacity)
-                                    ))
+                                RecipeIngredientsSection(
+                                    ingredients: ingredients,
+                                    checkedIngredients: $checkedIngredients
+                                )
+                                .padding(.horizontal, 16)
+                                .transition(.asymmetric(
+                                    insertion: .move(edge: .trailing).combined(with: .opacity),
+                                    removal: .move(edge: .leading).combined(with: .opacity)
+                                ))
                             }
                             
                         case .instructions:
@@ -226,280 +230,45 @@ struct RecipeInfoSection: View {
             // Two-row layout with beautiful colors
             VStack(spacing: 8) {
                 // First row: Cuisine, Difficulty, Servings
-                HStack(spacing: 8) {
-                    if let cuisineType = recipeMetadata.cuisine_type {
-                        OverviewChip(icon: "globe", text: cuisineType.capitalized, color: Color(hex: "E3F2FD")) // Soft blue
-                    }
-                    
-                    if let difficulty = recipeMetadata.difficulty_level {
-                        OverviewChip(icon: "speedometer", text: difficulty.capitalized, color: Color(hex: "FFF3E0")) // Soft orange
-                    }
-                    
-                    if let servings = recipeMetadata.servings {
-                        OverviewChip(icon: "person.2.fill", text: "Serves \(servings)", color: Color(hex: "E8F5E8")) // Soft green
-                    }
-                    
-                    Spacer()
-                }
+                HorizontalChipRow(chips: primaryInfoChips)
                 
-                // Second row: Prep time and Cook time (only show if at least one exists)
-                if recipeMetadata.prep_time != nil || recipeMetadata.cook_time != nil {
-                    HStack(spacing: 8) {
-                        if let prepTime = recipeMetadata.prep_time {
-                            OverviewChip(icon: "clock", text: "Prep: \(prepTime)", color: Color(hex: "F3E5F5")) // Soft purple
-                        }
-                        
-                        if let cookTime = recipeMetadata.cook_time {
-                            OverviewChip(icon: "flame", text: "Cook: \(cookTime)", color: Color(hex: "F3E5F5")) // Soft purple (same as prep)
-                        }
-                        
-                        Spacer()
-                    }
-                }
+                // Second row: Prep time and Cook time
+                HorizontalChipRow(chips: timeInfoChips)
             }
             .padding(.bottom, 12)
         }
     }
-}
-
-struct RequiredItemsSection: View {
-    let requiredItems: [String]
     
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-             // Beautiful equipment grid
-             LazyVGrid(columns: [
-                 GridItem(.flexible()),
-                 GridItem(.flexible())
-             ], spacing: 8) {
-                 ForEach(Array(requiredItems.enumerated()), id: \.offset) { index, item in
-                     EquipmentCard(item: item)
-                 }
-             }
-             .padding(.top, 16)
-             .padding(.bottom, 12)
+    private var primaryInfoChips: [ChipData] {
+        var chips: [ChipData] = []
+        
+        if let cuisineType = recipeMetadata.cuisine_type {
+            chips.append(ChipData(icon: "globe", text: cuisineType.capitalized, color: Color(hex: "E3F2FD")))
         }
+        
+        if let difficulty = recipeMetadata.difficulty_level {
+            chips.append(ChipData(icon: "speedometer", text: difficulty.capitalized, color: Color(hex: "FFF3E0")))
+        }
+        
+        if let servings = recipeMetadata.servings {
+            chips.append(ChipData(icon: "person.2.fill", text: "Serves \(servings)", color: Color(hex: "E8F5E8")))
+        }
+        
+        return chips
     }
-}
-
-struct RecipeIngredientsSection: View {
-    let ingredients: [String]
-    @State private var checkedIngredients: Set<Int> = []
     
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            // Beautiful ingredients checklist grid
-            LazyVGrid(columns: [
-                GridItem(.flexible()),
-                GridItem(.flexible())
-            ], spacing: 8) {
-                ForEach(Array(ingredients.enumerated()), id: \.offset) { index, ingredient in
-                    IngredientCheckCard(
-                        ingredient: ingredient,
-                        isChecked: checkedIngredients.contains(index)
-                    ) {
-                        withAnimation(.easeInOut(duration: 0.2)) {
-                            HapticFeedbacks.light()
-                            if checkedIngredients.contains(index) {
-                                checkedIngredients.remove(index)
-                            } else {
-                                checkedIngredients.insert(index)
-                            }
-                        }
-                    }
-                }
-            }
-            .padding(.top, 16)
-            .padding(.bottom, 12)
+    private var timeInfoChips: [ChipData] {
+        var chips: [ChipData] = []
+        
+        if let prepTime = recipeMetadata.prep_time {
+            chips.append(ChipData(icon: "clock", text: "Prep: \(prepTime)", color: Color(hex: "F3E5F5")))
         }
-    }
-}
-
-struct RecipeInstructionsSection: View {
-    let instructions: [String]
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            VStack(alignment: .leading, spacing: 10) {
-                ForEach(Array(instructions.enumerated()), id: \.offset) { index, instruction in
-                    HStack(alignment: .top, spacing: 10) {
-                        ZStack {
-                            Circle()
-                                .fill(Color.appPrimary.opacity(0.15))
-                                .frame(width: 30, height: 30)
-                            
-                            Text("\(index + 1)")
-                                .font(.caption)
-                                .fontWeight(.bold)
-                                .foregroundColor(.appPrimary)
-                        }
-                        
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(instruction)
-                                .font(.subheadline)
-                                .foregroundColor(.secondary)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-                    }
-                    
-                    if index < instructions.count - 1 {
-                        Divider()
-                            .padding(.leading, 30)
-                    }
-                }
-            }
-            .padding(.top, 16)
-            .padding(.bottom, 12)
+        
+        if let cookTime = recipeMetadata.cook_time {
+            chips.append(ChipData(icon: "flame", text: "Cook: \(cookTime)", color: Color(hex: "F3E5F5")))
         }
-    }
-}
-
-struct OverviewChip: View {
-    let icon: String
-    let text: String
-    let color: Color
-    
-    var body: some View {
-        HStack(spacing: 6) {
-            Image(systemName: icon)
-                .font(.caption2)
-                .foregroundColor(.primary.opacity(0.7))
-                .frame(width: 14)
-            
-            Text(text)
-                .font(.caption)
-                .fontWeight(.medium)
-                .foregroundColor(.primary)
-                .minimumScaleFactor(0.7)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .background(color)
-        .cornerRadius(16)
-    }
-}
-
-struct CompactDetailCard: View {
-    let icon: String
-    let text: String
-    
-    var body: some View {
-        HStack(spacing: 8) {
-            Image(systemName: icon)
-                .font(.caption)
-                .foregroundColor(.appPrimary)
-                .frame(width: 16)
-            
-            Text(text)
-                .font(.caption)
-                .fontWeight(.medium)
-                .foregroundColor(.primary)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 6)
-        .background(Color.appPrimary.opacity(0.08))
-        .cornerRadius(8)
-    }
-}
-
-struct EquipmentCard: View {
-    let item: String
-    
-    var body: some View {
-        HStack(alignment: .top, spacing: 8) {
-            Text(item)
-                .font(.caption)
-                .fontWeight(.medium)
-                .foregroundColor(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-                .multilineTextAlignment(.leading)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 10)
-        .padding(.vertical, 8)
-        .background(Color.appAccent.opacity(0.08))
-        .cornerRadius(8)
-    }
-}
-
-struct IngredientCheckCard: View {
-    let ingredient: String
-    let isChecked: Bool
-    let onToggle: () -> Void
-    
-    var body: some View {
-        HStack(alignment: .top, spacing: 8) {
-            Image(systemName: isChecked ? "checkmark.circle.fill" : "circle")
-                .font(.caption)
-                .foregroundColor(isChecked ? .appPrimary : .gray.opacity(0.5))
-                .frame(width: 12)
-                .padding(.top, 2)
-            
-            Text(ingredient)
-                .font(.caption)
-                .fontWeight(.medium)
-                .foregroundColor(isChecked ? .secondary.opacity(0.7) : .secondary)
-                .fixedSize(horizontal: false, vertical: true)
-                .multilineTextAlignment(.leading)
-                .strikethrough(isChecked, color: .secondary.opacity(0.5))
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 10)
-        .padding(.vertical, 8)
-        .background(isChecked ? Color.appPrimary.opacity(0.08) : Color.gray.opacity(0.06))
-        .cornerRadius(8)
-        .contentShape(Rectangle())
-        .onTapGesture {
-            onToggle()
-        }
-    }
-}
-
-struct IngredientCard: View {
-    let ingredient: String
-    
-    var body: some View {
-        HStack(alignment: .top, spacing: 8) {
-            Image(systemName: "checkmark.circle.fill")
-                .font(.caption)
-                .foregroundColor(.appPrimary)
-                .frame(width: 12)
-                .padding(.top, 2)
-            
-            Text(ingredient)
-                .font(.caption)
-                .fontWeight(.medium)
-                .foregroundColor(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-                .multilineTextAlignment(.leading)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 10)
-        .padding(.vertical, 8)
-        .background(Color.gray.opacity(0.06))
-        .cornerRadius(8)
-    }
-}
-
-struct RecipeDetailRow: View {
-    let icon: String
-    let text: String
-    
-    var body: some View {
-        HStack(alignment: .center, spacing: 6) {
-            Image(systemName: icon)
-                .font(.footnote)
-                .foregroundColor(.gray)
-                .frame(width: 16)
-            
-            Text(text)
-                .font(.subheadline)
-                .foregroundColor(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        .padding(.vertical, 2)
+        
+        return chips
     }
 }
 

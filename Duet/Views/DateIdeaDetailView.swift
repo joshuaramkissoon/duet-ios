@@ -7,6 +7,7 @@
 
 import SwiftUI
 import AVKit
+import FirebaseAuth
 
 struct DateIdeaDetailView: View {
     let dateIdea: DateIdeaResponse
@@ -14,12 +15,13 @@ struct DateIdeaDetailView: View {
     var scrollToComments: Bool = false
     
     @EnvironmentObject private var toastManager: ToastManager
+    @EnvironmentObject private var authVM: AuthenticationViewModel
     @Environment(\.openURL) private var openURL
     @ObservedObject var viewModel: DateIdeaViewModel
     @State private var showShareSheet = false
     
     private var sectionTitle: String {
-        switch dateIdea.summary.content_type {
+        switch currentDateIdeaResponse.summary.content_type {
         case .recipe:
             return "About This Recipe"
         case .travel:
@@ -31,6 +33,21 @@ struct DateIdeaDetailView: View {
         }
     }
     
+    /// Check if current user can edit this recipe
+    private var canEditRecipe: Bool {
+        // Allow editing if it's a group idea (groupId is non-nil) OR current user is the owner
+        if groupId != nil {
+            return true
+        }
+        
+        guard let currentUserId = authVM.user?.uid,
+              let recipeOwnerId = currentDateIdeaResponse.user_id else {
+            return false
+        }
+        
+        return currentUserId == recipeOwnerId
+    }
+    
     var body: some View {
         ScrollViewReader { proxy in
             ScrollView {
@@ -40,8 +57,8 @@ struct DateIdeaDetailView: View {
                             Spacer()
                             CachedVideoView(
                                 remoteURL: url, 
-                                thumbnailB64: dateIdea.thumbnail_b64,
-                                aspectRatio: dateIdea.videoMetadata?.aspectRatio ?? 16/9,
+                                thumbnailB64: currentDateIdeaResponse.thumbnail_b64,
+                                aspectRatio: currentDateIdeaResponse.videoMetadata?.aspectRatio ?? 16/9,
                                 width: UIScreen.main.bounds.width - 100
                             )
                             Spacer()
@@ -51,7 +68,7 @@ struct DateIdeaDetailView: View {
                     
                     // Title and basic info
                     VStack(alignment: .leading, spacing: 16) {
-                        Text(dateIdea.title)
+                        Text(currentDateIdeaResponse.title)
                             .font(.title)
                             .fontWeight(.bold)
                             .foregroundColor(.primary)
@@ -60,18 +77,18 @@ struct DateIdeaDetailView: View {
                         // Tags row
                         ScrollView(.horizontal, showsIndicators: false) {
                             HStack(spacing: 4) {
-                                CategoryPill(text: dateIdea.summary.activity.title,
-                                             icon: dateIdea.summary.activity.icon,
+                                CategoryPill(text: currentDateIdeaResponse.summary.activity.title,
+                                             icon: currentDateIdeaResponse.summary.activity.icon,
                                              color: .appPrimary)
                                 .padding(.leading, 6)
                                 
-                                CategoryPill(text: dateIdea.summary.season.rawValue.capitalized,
-                                             icon: dateIdea.summary.season.icon,
+                                CategoryPill(text: currentDateIdeaResponse.summary.season.rawValue.capitalized,
+                                             icon: currentDateIdeaResponse.summary.season.icon,
                                              color: .appSecondary)
                                 .padding(.leading, 6)
                                 
-                                CategoryPill(text: dateIdea.summary.cost_level.displayName,
-                                             icon: dateIdea.summary.cost_level.icon,
+                                CategoryPill(text: currentDateIdeaResponse.summary.cost_level.displayName,
+                                             icon: currentDateIdeaResponse.summary.cost_level.icon,
                                              color: .appAccent)
                                 .padding(.leading, 6)
                             }
@@ -80,7 +97,7 @@ struct DateIdeaDetailView: View {
                         
                         ScrollView(.horizontal, showsIndicators: false) {
                             HStack(spacing: 4) {
-                                ForEach(dateIdea.summary.tags, id: \.id) { tag in
+                                ForEach(currentDateIdeaResponse.summary.tags, id: \.id) { tag in
                                     CategoryPill(text: tag.title, icon: tag.icon, color: .gray)
                                         .padding(.leading, 6)
                                 }
@@ -93,10 +110,10 @@ struct DateIdeaDetailView: View {
                         
                         // Location and duration
                         HStack(spacing: 16) {
-                            if dateIdea.summary.content_type != .recipe {
-                                InfoItem(icon: "mappin.and.ellipse", text: dateIdea.summary.location)
+                            if currentDateIdeaResponse.summary.content_type != .recipe {
+                                InfoItem(icon: "mappin.and.ellipse", text: currentDateIdeaResponse.summary.location)
                             }
-                            InfoItem(icon: "clock", text: dateIdea.summary.duration)
+                            InfoItem(icon: "clock", text: currentDateIdeaResponse.summary.duration)
                         }
                         .padding(.horizontal)
                         
@@ -106,28 +123,49 @@ struct DateIdeaDetailView: View {
                                 .font(.headline)
                                 .foregroundColor(.primary)
                             
-                            Text(dateIdea.summary.summary)
+                            Text(currentDateIdeaResponse.summary.summary)
                                 .foregroundColor(.secondary)
                                 .fixedSize(horizontal: false, vertical: true)
                         }
                         .padding(.horizontal)
                         
                         // Required items (only show if not a recipe - recipes show this inside RecipeView)
-                        if !dateIdea.summary.required_items.isEmpty && (dateIdea.summary.suggested_itinerary == nil && dateIdea.summary.recipe_metadata == nil){
-                            RequiredItemsSection(requiredItems: dateIdea.summary.required_items)
+                        if !currentDateIdeaResponse.summary.required_items.isEmpty && (currentDateIdeaResponse.summary.suggested_itinerary == nil && currentDateIdeaResponse.summary.recipe_metadata == nil){
+                            RequiredItemsSection(requiredItems: currentDateIdeaResponse.summary.required_items)
                                 .padding(.horizontal)
                         }
                         
-                        if let itinerary = dateIdea.summary.suggested_itinerary, !itinerary.isEmpty && dateIdea.summary.recipe_metadata == nil {
-                            ItineraryView(itineraryItems: itinerary, requiredItems: dateIdea.summary.required_items, totalDuration: dateIdea.summary.duration, location: dateIdea.summary.location)
+                        if let itinerary = currentDateIdeaResponse.summary.suggested_itinerary, !itinerary.isEmpty && currentDateIdeaResponse.summary.recipe_metadata == nil {
+                            ItineraryView(itineraryItems: itinerary, requiredItems: currentDateIdeaResponse.summary.required_items, totalDuration: currentDateIdeaResponse.summary.duration, location: currentDateIdeaResponse.summary.location)
                                 .padding(.bottom, 16)
                                 .padding(.horizontal)
                         }
                         
-                        if let recipeMetadata = dateIdea.summary.recipe_metadata {
-                            RecipeView(recipeMetadata: recipeMetadata, requiredItems: dateIdea.summary.required_items)
+                        if let recipeMetadata = currentRecipeMetadata {
+                            if canEditRecipe {
+                                EditableRecipeView(
+                                    recipeMetadata: recipeMetadata,
+                                    requiredItems: currentRequiredItems,
+                                    onSave: { updatedMetadata, updatedItems in
+                                        viewModel.updateRecipe(
+                                            ideaId: currentDateIdeaResponse.id,
+                                            recipeMetadata: updatedMetadata,
+                                            requiredItems: updatedItems,
+                                            groupId: groupId
+                                        )
+                                    },
+                                    onCancel: {
+                                        viewModel.cancelRecipeEdit()
+                                    }
+                                )
                                 .padding(.bottom, 16)
                                 .padding(.horizontal)
+                            } else {
+                                // Show read-only recipe view if user cannot edit
+                                RecipeView(recipeMetadata: recipeMetadata, requiredItems: currentRequiredItems)
+                                    .padding(.bottom, 16)
+                                    .padding(.horizontal)
+                            }
                         }
                         
                         // Share to group
@@ -151,7 +189,7 @@ struct DateIdeaDetailView: View {
                         .padding(.horizontal)
 
                         // Comments Section
-                        CommentSection(ideaId: dateIdea.id, groupId: groupId)
+                        CommentSection(ideaId: currentDateIdeaResponse.id, groupId: groupId)
                             .padding(.horizontal)
                             .padding(.bottom, 16)
                             .id("commentsSection")
@@ -160,6 +198,12 @@ struct DateIdeaDetailView: View {
             }
             .scrollDismissesKeyboard(.interactively)
             .onAppear {
+                // Initialize view model with current data
+                viewModel.setCurrentDateIdea(dateIdea)
+                
+                // Fetch latest data from backend in the background
+                viewModel.fetchLatestActivityData(for: dateIdea.id)
+                
                 if scrollToComments {
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                         withAnimation(.easeInOut(duration: 0.3)) {
@@ -177,7 +221,7 @@ struct DateIdeaDetailView: View {
                             Label("Share to Group", systemImage: "person.3.fill")
                         }
                         
-                        if let src = dateIdea.original_source_url,
+                        if let src = currentDateIdeaResponse.original_source_url,
                            let url = URL(string: src) {
                             Button {
                                 openURL(url)
@@ -193,10 +237,27 @@ struct DateIdeaDetailView: View {
                 }
             }
             .sheet(isPresented: $showShareSheet) {
-                ShareToGroupView(idea: dateIdea, isPresented: $showShareSheet, toastManager: toastManager)
+                ShareToGroupView(idea: currentDateIdeaResponse, isPresented: $showShareSheet, toastManager: toastManager)
             }
             .withAppBackground()
         }
+    }
+    
+    // MARK: - Helper Properties
+    
+    /// Returns the current date idea response, prioritizing updated data from view model
+    private var currentDateIdeaResponse: DateIdeaResponse {
+        return viewModel.dateIdeaResponse ?? dateIdea
+    }
+    
+    /// Returns the current recipe metadata, prioritizing updated data from view model
+    private var currentRecipeMetadata: RecipeMetadata? {
+        return viewModel.dateIdeaResponse?.summary.recipe_metadata ?? dateIdea.summary.recipe_metadata
+    }
+    
+    /// Returns the current required items, prioritizing updated data from view model
+    private var currentRequiredItems: [String] {
+        return viewModel.dateIdeaResponse?.summary.required_items ?? dateIdea.summary.required_items
     }
 }
 

@@ -20,6 +20,10 @@ extension Color {
     static let appSuccess = Color.green
     static let appDivider = Color.gray.opacity(0.2)
     
+    // Pastel colors for UI elements
+    static let lightLavender = Color(hex: "D9D7F1")  // Light lavender background
+    static let darkPurple = Color(hex: "6A60A9")     // Darker purple for text/icons
+    
     /// Deep midnight slate with blue undertones - recommended
     static let midnightSlate = Color(hex: "1E293B")
     

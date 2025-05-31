@@ -116,10 +116,10 @@ struct DateIdea: Identifiable, Codable {
     let season: Season
     let duration: String
     let cost_level: CostLevel
-    let required_items: [String]
+    var required_items: [String]
     let tags: [Tag]
-    let suggested_itinerary: [ItineraryItem]?
-    let recipe_metadata: RecipeMetadata?
+    var suggested_itinerary: [ItineraryItem]?
+    var recipe_metadata: RecipeMetadata?
     
     // CodingKeys to handle the id that's not in JSON
     private enum CodingKeys: String, CodingKey {

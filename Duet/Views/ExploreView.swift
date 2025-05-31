@@ -425,18 +425,24 @@ struct ExploreCard: View {
     @State private var isActive = false
     @State private var showVideo = false
     @StateObject private var commentsViewModel: CommentsViewModel
+    @StateObject private var dateIdeaViewModel: DateIdeaViewModel
 
     init(activity: DateIdeaResponse, selectedActivity: Binding<DateIdeaResponse?>) {
         self.activity = activity
         self._selectedActivity = selectedActivity
         self._commentsViewModel = StateObject(wrappedValue: CommentsViewModel(ideaId: activity.id, groupId: nil))
+        self._dateIdeaViewModel = StateObject(wrappedValue: DateIdeaViewModel(toast: ToastManager(), videoUrl: activity.cloudFrontVideoURL))
     }
 
     var body: some View {
-        NavigationLink(destination: DateIdeaDetailView(dateIdea: activity, viewModel: DateIdeaViewModel(toast: toast, videoUrl: activity.cloudFrontVideoURL))) {
+        NavigationLink(destination: DateIdeaDetailView(dateIdea: activity, viewModel: dateIdeaViewModel)) {
             cardContent
         }
         .buttonStyle(.plain)
+        .onAppear {
+            // Update the viewModel with the correct toast manager from environment
+            dateIdeaViewModel.updateToastManager(toast)
+        }
     }
     
     private var videoThumbnail: some View {
@@ -554,7 +560,7 @@ struct ExploreCard: View {
                 ReactionBar(ideaId: activity.id, groupId: nil)
                 
                 // Comment icon with count - tappable to scroll to comments
-                NavigationLink(destination: DateIdeaDetailView(dateIdea: activity, scrollToComments: true, viewModel: DateIdeaViewModel(toast: toast, videoUrl: activity.cloudFrontVideoURL))) {
+                NavigationLink(destination: DateIdeaDetailView(dateIdea: activity, scrollToComments: true, viewModel: dateIdeaViewModel)) {
                     HStack(spacing: 4) {
                         Image(systemName: "message")
                             .font(.title3)
