@@ -64,6 +64,24 @@ struct DateIdeaDetailView: View {
                             Spacer()
                         }
                         .padding(.horizontal)
+                        
+                        // Video Author Attribution
+                        if let videoMetadata = currentDateIdeaResponse.videoMetadata,
+                           let authorHandle = videoMetadata.author_handle,
+                           let authorUrl = videoMetadata.author_url,
+                           let platform = videoMetadata.platform,
+                           !authorHandle.isEmpty,
+                           !authorUrl.isEmpty {
+                            VideoAuthorAttribution(
+                                authorHandle: authorHandle,
+                                authorUrl: authorUrl,
+                                platform: platform
+                            ) { url in
+                                openURL(url)
+                            }
+                            .padding(.horizontal)
+                            .padding(.top, -8)
+                        }
                     }
                     
                     // Title and basic info

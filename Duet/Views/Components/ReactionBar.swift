@@ -16,6 +16,21 @@ struct ReactionBar: View {
     }
 
     var body: some View {
+        ZStack(alignment: .topLeading) {
+            // Main content layer
+            mainContent
+            
+            // Emoji selection overlay
+            if showEmojiBar && !userHasAnyReaction {
+                emojiSelectionOverlay
+                    .zIndex(1)
+            }
+        }
+        .animation(.easeInOut(duration: 0.25), value: userHasAnyReaction)
+        .animation(.easeInOut(duration: 0.25), value: showEmojiBar)
+    }
+    
+    private var mainContent: some View {
         VStack(alignment: .leading, spacing: 8) {
             // Always show active reactions first (if any exist)
             if hasActiveReactions {
@@ -34,23 +49,6 @@ struct ReactionBar: View {
                     removal: .opacity
                 ))
                 .animation(.easeInOut(duration: 0.3), value: hasActiveReactions)
-            }
-            
-            // Emoji selection bar (show/hide based on state) - only show if user hasn't reacted
-            if showEmojiBar && !userHasAnyReaction {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 8) {
-                        ForEach(defaultEmojis, id: \.self) { emoji in
-                            reactionCapsule(for: emoji)
-                        }
-                    }
-                    .padding(.horizontal, 4)
-                    .padding(.vertical, 4)
-                }
-                .transition(.asymmetric(
-                    insertion: .scale(scale: 0.8).combined(with: .opacity),
-                    removal: .scale(scale: 0.8).combined(with: .opacity)
-                ))
             }
             
             // React button - only show if user hasn't reacted to anything
@@ -88,8 +86,28 @@ struct ReactionBar: View {
                 .transition(.opacity)
             }
         }
-        .animation(.easeInOut(duration: 0.25), value: userHasAnyReaction)
-        .animation(.easeInOut(duration: 0.25), value: showEmojiBar)
+    }
+    
+    private var emojiSelectionOverlay: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(defaultEmojis, id: \.self) { emoji in
+                    reactionCapsule(for: emoji)
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+        }
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color(.systemBackground))
+                .shadow(color: .black.opacity(0.1), radius: 8, x: 0, y: 4)
+        )
+        .padding(.top, userHasAnyReaction ? 0 : 44) // Offset below the react button
+        .transition(.asymmetric(
+            insertion: .scale(scale: 0.9).combined(with: .opacity),
+            removal: .scale(scale: 0.9).combined(with: .opacity)
+        ))
     }
 
     // MARK: - Computed Properties
@@ -128,7 +146,7 @@ struct ReactionBar: View {
             Text(emoji)
                 .font(.title2)
                 .frame(width: 44, height: 44)
-                .background(Color.gray.opacity(0.1))
+                .background(Color.appPrimaryLightBackground)
                 .clipShape(Circle())
         }
         .buttonStyle(.plain)
