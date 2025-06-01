@@ -26,6 +26,7 @@ struct ActivityHistoryCard: View {
     @State private var showVideo = false
     @StateObject private var commentsViewModel: CommentsViewModel
     @StateObject private var dateIdeaViewModel: DateIdeaViewModel
+    @State private var updatedAuthor: User?
     
     init(activity: DateIdeaResponse, showAuthor: Bool = false, showReactionsBar: Bool = true, author: User? = nil, sharedAt: Date? = nil, onRemove: (() async -> Void)? = nil, groupId: String? = nil) {
         self.activity = activity
@@ -38,6 +39,7 @@ struct ActivityHistoryCard: View {
         self._commentsViewModel = StateObject(wrappedValue: CommentsViewModel(ideaId: activity.id, groupId: groupId))
         // Create DateIdeaViewModel with placeholder toast manager - will be updated with environment manager
         self._dateIdeaViewModel = StateObject(wrappedValue: DateIdeaViewModel(toast: ToastManager(), videoUrl: activity.cloudFrontVideoURL))
+        self._updatedAuthor = State(initialValue: author)
     }
 
     var body: some View {
@@ -58,6 +60,15 @@ struct ActivityHistoryCard: View {
             // Update the viewModel with the correct toast manager from environment
             dateIdeaViewModel.updateToastManager(toast)
         }
+        .onReceive(NotificationCenter.default.publisher(for: .userProfileUpdated)) { notification in
+            // If the updated user is the author, update local state
+            if let updatedUser = notification.userInfo?["updatedUser"] as? User,
+               let currentAuthor = author,
+               updatedUser.id == currentAuthor.id {
+                updatedAuthor = updatedUser
+                print("🔄 Updated author in ActivityHistoryCard for activity \(activity.id)")
+            }
+        }
     }
     
     private var videoThumbnail: some View {
@@ -76,14 +87,18 @@ struct ActivityHistoryCard: View {
     private func authorSection(_ author: User?) -> some View {
         let anonName = "Anonymous user"
         let currentUserId = authVM.user?.uid
+        
+        // Use updated author if available, otherwise use original author
+        let effectiveAuthor = updatedAuthor ?? author
+        
         let displayName: String = {
-            guard let author else { return anonName }
-            return author.id == currentUserId ? "You" : author.displayName
+            guard let effectiveAuthor else { return anonName }
+            return effectiveAuthor.id == currentUserId ? "You" : effectiveAuthor.displayName
         }()
         
         HStack(spacing: 8) {
             // Author avatar
-            ProfileImage(user: author ?? User(id: "anonymous user", name: anonName), diam: 28)
+            ProfileImage(user: effectiveAuthor ?? User(id: "anonymous user", name: anonName), diam: 28)
             
             // "Shared by" text
             HStack(spacing: 4) {

@@ -206,6 +206,18 @@ struct GroupDetailView: View {
                     processingManager.startListeningToGroupJobs(groupId: groupId)
                 }
             }
+            .onReceive(NotificationCenter.default.publisher(for: .userProfileUpdated)) { notification in
+                // Update group member if it's the current user who updated their profile
+                if let updatedUser = notification.userInfo?["updatedUser"] as? User,
+                   let currentUserId = authVM.user?.uid,
+                   updatedUser.id == currentUserId {
+                    // Update the member in viewModel.members array
+                    if let memberIndex = viewModel.members.firstIndex(where: { $0.id == updatedUser.id }) {
+                        viewModel.members[memberIndex] = updatedUser
+                        print("🔄 Updated current user in group members list")
+                    }
+                }
+            }
             .onDisappear {
                 // Only stop processing manager group tracking, not the ideas listener
                 // The ideas listener should persist for smooth navigation

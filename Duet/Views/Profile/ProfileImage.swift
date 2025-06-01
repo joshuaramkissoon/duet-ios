@@ -27,16 +27,47 @@ struct ProfileImage: View {
     var body: some View {
         VStack(spacing: 4) {
             ZStack {
-                AbstractGradientBackground(seedString: user.id)
-                    .frame(width: diam, height: diam)
-                
+                // Show custom profile image if available
+                if let profileImageUrl = user.profileImageUrl, !profileImageUrl.isEmpty {
+                    AsyncImage(url: URL(string: profileImageUrl)) { phase in
+                        switch phase {
+                        case .empty:
+                            // Show loading placeholder
+                            ProgressView()
+                                .frame(width: diam, height: diam)
+                        case .success(let image):
+                            image
+                                .resizable()
+                                .scaledToFill()
+                                .frame(width: diam, height: diam)
+                                .clipShape(Circle())
+                        case .failure:
+                            // Fallback to initials on failure
+                            initialsView
+                        @unknown default:
+                            initialsView
+                        }
+                    }
+                } else {
+                    // Show initials when no custom image
+                    initialsView
+                }
+            }
+        }
+    }
+    
+    @ViewBuilder
+    private var initialsView: some View {
+        AbstractGradientBackground(seedString: user.id)
+            .frame(width: diam, height: diam)
+            .clipShape(Circle())
+            .overlay(
                 Text(user.initials)
                     .font(.system(size: fontSize, weight: fontWeight))
                     .fontWeight(fontWeight)
                     .foregroundColor(.white)
                     .shadow(color: .black.opacity(0.3), radius: 1, x: 0, y: 1)
-            }
-        }
+            )
     }
 }
 
@@ -66,5 +97,9 @@ struct UserProfileImage: View {
 }
 
 #Preview {
-    ProfileImage(user: User(id: UUID().uuidString, name: "Joshua Ramkissoon"))
+    VStack(spacing: 20) {
+        ProfileImage(user: User(id: UUID().uuidString, name: "Joshua Ramkissoon"))
+        
+        ProfileImage(user: User(id: UUID().uuidString, name: "Test User", profileImageUrl: "https://picsum.photos/200"))
+    }
 }

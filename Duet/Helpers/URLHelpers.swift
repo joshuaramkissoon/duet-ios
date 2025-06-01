@@ -11,8 +11,15 @@ struct URLHelpers {
             return s3Url // Return original if invalid URL
         }
         
-        // Extract the S3 key (last path component)
-        let s3Key = url.lastPathComponent
+        // Extract the S3 key (full path after bucket domain)
+        // For URLs like: https://duet-media.s3.eu-north-1.amazonaws.com/profile-images/user123_uuid.jpg
+        // We want the key: profile-images/user123_uuid.jpg
+        let s3Key = String(url.path.dropFirst()) // Remove leading slash
+        
+        // Guard against empty keys
+        guard !s3Key.isEmpty else {
+            return s3Url // Return original if no valid key
+        }
         
         // Construct CloudFront URL
         let cloudFrontUrl = "\(cloudFrontDomain)/\(s3Key)"

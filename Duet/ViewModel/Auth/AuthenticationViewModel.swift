@@ -113,6 +113,27 @@ class AuthenticationViewModel: ObservableObject {
         catch { errorMessage = error.localizedDescription }
     }
     
+    /// Refresh current user data from network (useful after profile updates)
+    func refreshCurrentUser() {
+        guard let firebaseUser = user else { return }
+        
+        // Force refresh from network, bypassing cache
+        NetworkClient.shared.getUsers(with: [firebaseUser.uid]) { [weak self] result in
+            DispatchQueue.main.async {
+                switch result {
+                case .success(let users):
+                    if let user = users.first {
+                        self?.currentUser = user
+                        UserCache.shared.cacheUser(user) // Update cache with fresh data
+                        print("🟢 Refreshed current user data: \(user.displayName)")
+                    }
+                case .failure(let error):
+                    print("❌ Failed to refresh current user info: \(error)")
+                }
+            }
+        }
+    }
+    
     func signInAnonymously() {
         isSigningInAnonymously = true
         Auth.auth().signInAnonymously { [weak self] res, err in

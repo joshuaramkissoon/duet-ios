@@ -6,13 +6,106 @@
 //
 
 import Foundation
+import SwiftUI
+
+// MARK: - Player Level Enum
+enum PlayerLevel: CaseIterable {
+    case ideaSpark
+    case ideaIgniter
+    case creativeFlame
+    case innovationStar
+    
+    init(ideaCount: Int) {
+        switch ideaCount {
+        case 0...15:
+            self = .ideaSpark
+        case 16...40:
+            self = .ideaIgniter
+        case 41...90:
+            self = .creativeFlame
+        default:
+            self = .innovationStar
+        }
+    }
+    
+    var title: String {
+        switch self {
+        case .ideaSpark:
+            return "Idea Spark"
+        case .ideaIgniter:
+            return "Idea Igniter"
+        case .creativeFlame:
+            return "Creative Flame"
+        case .innovationStar:
+            return "Innovation Star"
+        }
+    }
+    
+    var icon: String {
+        switch self {
+        case .ideaSpark:
+            return "lightbulb"
+        case .ideaIgniter:
+            return "bolt.fill"
+        case .creativeFlame:
+            return "flame"
+        case .innovationStar:
+            return "sparkles"
+        }
+    }
+    
+    var color: Color {
+        backgroundColor
+    }
+    
+    var backgroundColor: Color {
+        switch self {
+        case .ideaSpark:
+            return Color.yellow.opacity(0.15)
+        case .ideaIgniter:
+            return Color.blue.opacity(0.15)
+        case .creativeFlame:
+            return Color.orange.opacity(0.15)
+        case .innovationStar:
+            return Color.purple.opacity(0.15)
+        }
+    }
+    
+    var foregroundColor: Color {
+        switch self {
+        case .ideaSpark:
+            return Color.yellow.opacity(0.8)
+        case .ideaIgniter:
+            return Color.blue.opacity(0.8)
+        case .creativeFlame:
+            return Color.orange.opacity(0.8)
+        case .innovationStar:
+            return Color.purple.opacity(0.8)
+        }
+    }
+}
 
 struct User: Identifiable, Encodable, Decodable {
     let id: String
     let name: String?
+    var profileImageUrl: String?
+    let createdAt: String?
+    let playerLevel: String?
+    
+    // Custom initializer for backward compatibility
+    init(id: String, name: String?, profileImageUrl: String? = nil, createdAt: String? = nil, playerLevel: String? = nil) {
+        self.id = id
+        self.name = name
+        self.profileImageUrl = profileImageUrl
+        self.createdAt = createdAt
+        self.playerLevel = playerLevel
+    }
     
     private enum CodingKeys: String, CodingKey {
         case id, name
+        case profileImageUrl = "profile_image_url"
+        case createdAt = "created_at"
+        case playerLevel = "player_level"
     }
     
     var initials: String {
@@ -31,5 +124,70 @@ struct User: Identifiable, Encodable, Decodable {
     var displayName: String {
         let trimmed = name?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         return trimmed.isEmpty ? "Guest user" : trimmed
+    }
+    
+    var memberSinceText: String {
+        guard let createdAtString = createdAt else {
+            return "Member since recently"
+        }
+        
+        // Try multiple parsing approaches
+        var date: Date?
+        
+        // 1. Try ISO8601DateFormatter with fractional seconds
+        let iso8601Formatter = ISO8601DateFormatter()
+        iso8601Formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        date = iso8601Formatter.date(from: createdAtString)
+        
+        // 2. Try ISO8601DateFormatter without fractional seconds
+        if date == nil {
+            iso8601Formatter.formatOptions = [.withInternetDateTime]
+            date = iso8601Formatter.date(from: createdAtString)
+        }
+        
+        // 3. Try custom DateFormatter for the exact format
+        if date == nil {
+            let customFormatter = DateFormatter()
+            customFormatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss.SSSSSS'Z'"
+            customFormatter.timeZone = TimeZone(abbreviation: "UTC")
+            date = customFormatter.date(from: createdAtString)
+        }
+        
+        // 4. Try custom DateFormatter without microseconds
+        if date == nil {
+            let customFormatter = DateFormatter()
+            customFormatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss'Z'"
+            customFormatter.timeZone = TimeZone(abbreviation: "UTC")
+            date = customFormatter.date(from: createdAtString)
+        }
+        
+        guard let parsedDate = date else {
+            return "Member since recently"
+        }
+        
+        let displayFormatter = DateFormatter()
+        displayFormatter.dateFormat = "MMMM yyyy"
+        return "Member since \(displayFormatter.string(from: parsedDate))"
+    }
+    
+    var playerLevelInfo: PlayerLevel {
+        guard let levelString = playerLevel?.lowercased().trimmingCharacters(in: .whitespacesAndNewlines) else {
+            return .ideaSpark // Default level
+        }
+        
+        // Parse level names from backend
+        switch levelString {
+        case "innovation_star", "innovation star", "innovationstar":
+            return .innovationStar
+        case "creative_flame", "creative flame", "creativeflame":
+            return .creativeFlame
+        case "idea_igniter", "idea igniter", "ideaigniter":
+            return .ideaIgniter
+        case "idea_spark", "idea spark", "ideaspark":
+            return .ideaSpark
+        default:
+            // Fallback for any unrecognized level names
+            return .ideaSpark
+        }
     }
 }

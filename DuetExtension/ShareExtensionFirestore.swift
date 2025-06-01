@@ -7,6 +7,7 @@
 
 import Foundation
 import Firebase
+import FirebaseAuth
 import FirebaseFirestore
 
 class ShareExtensionAPI {
@@ -47,15 +48,27 @@ class ShareExtensionAPI {
         guard let requestUrl = URL(string: baseUrl + endpoint) else {
             throw ShareExtensionError.invalidURL
         }
+        
+        // Get Firebase auth token
+        guard let currentUser = Auth.auth().currentUser else {
+            throw ShareExtensionError.userNotAuthenticated
+        }
+        
+        let idToken = try await currentUser.getIDToken()
+        
         var request = URLRequest(url: requestUrl)
         request.httpMethod = "POST"
         request.addValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.addValue("Bearer \(idToken)", forHTTPHeaderField: "Authorization")
+        
         do {
             request.httpBody = try JSONEncoder().encode(body)
         } catch {
             throw ShareExtensionError.encodingError
         }
-        print("📡 POST: \(requestUrl)")
+        
+        print("📡 POST with Auth: \(requestUrl)")
+        
         let (_, response) = try await URLSession.shared.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse,
               200...299 ~= httpResponse.statusCode else {

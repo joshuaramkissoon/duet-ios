@@ -169,37 +169,20 @@ struct ExploreView: View {
             
             // Preset Query Cards (only when not searching)
             if !viewModel.isSearchActive && viewModel.query.isEmpty {
-                presetQueryCards
-                    .transition(.opacity.combined(with: .scale(scale: 0.95)))
-            }
-        }
-        .padding(.horizontal, 20)
-        .padding(.bottom, 20)
-    }
-    
-    @ViewBuilder
-    private var presetQueryCards: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Popular searches")
-                .font(.headline)
-                .fontWeight(.semibold)
-                .foregroundColor(.primary)
-                .padding(.horizontal, 4)
-            
-            LazyVGrid(columns: [
-                GridItem(.flexible(), spacing: 8),
-                GridItem(.flexible(), spacing: 8)
-            ], spacing: 8) {
-                ForEach(viewModel.presetQueries, id: \.self) { query in
-                    PresetQueryCard(query: query) {
+                PresetQueryCardsSection(
+                    presetQueries: viewModel.presetQueries,
+                    onQueryTap: { query in
                         isSearchFocused = false
                         withAnimation(.easeInOut(duration: 0.2)) {
                             viewModel.performSearch(with: query)
                         }
                     }
-                }
+                )
+                .transition(.opacity.combined(with: .scale(scale: 0.95)))
             }
         }
+        .padding(.horizontal, 20)
+        .padding(.bottom, 20)
     }
     
     @ViewBuilder
@@ -426,6 +409,10 @@ struct ExploreCard: View {
     @State private var showVideo = false
     @StateObject private var commentsViewModel: CommentsViewModel
     @StateObject private var dateIdeaViewModel: DateIdeaViewModel
+    
+    // State for user data fetching
+    @State private var authorUser: User?
+    @State private var isLoadingAuthor = false
 
     init(activity: DateIdeaResponse, selectedActivity: Binding<DateIdeaResponse?>) {
         self.activity = activity
@@ -442,6 +429,17 @@ struct ExploreCard: View {
         .onAppear {
             // Update the viewModel with the correct toast manager from environment
             dateIdeaViewModel.updateToastManager(toast)
+            // Fetch author user data if needed
+            fetchAuthorUserIfNeeded()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .userProfileUpdated)) { notification in
+            // If the updated user is the author of this activity, clear local state to trigger refresh
+            if let updatedUser = notification.userInfo?["updatedUser"] as? User,
+               let authorId = activity.user_id,
+               updatedUser.id == authorId {
+                authorUser = updatedUser // Update immediately with new data
+                print("🔄 Updated author user for activity \(activity.id) with new profile image")
+            }
         }
     }
     
@@ -462,19 +460,21 @@ struct ExploreCard: View {
         if let userId = activity.user_id, let userName = activity.user_name {
             let currentUserId = authVM.user?.uid
             let displayName = userId == currentUserId ? "You" : userName
-            let user = User(id: userId, name: userName)
             
             HStack(spacing: 8) {
-                // Author avatar
-                ProfileImage(user: user, diam: 24)
+                // Author avatar - show loading or user image
+                if isLoadingAuthor {
+                    // Show placeholder while loading
+                    Circle()
+                        .fill(Color.gray.opacity(0.2))
+                        .frame(width: 24, height: 24)
+                } else {
+                    let user = authorUser ?? User(id: userId, name: userName)
+                    ProfileImage(user: user, diam: 24)
+                }
                 
-                // "Created by" text
                 VStack(alignment: .leading, spacing: 2) {
-                    HStack(spacing: 4) {
-                        Text("Created by")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                        
+                    HStack(spacing: 4) {                        
                         Text(displayName)
                             .font(.caption)
                             .fontWeight(.medium)
@@ -646,6 +646,41 @@ struct ExploreCard: View {
                 }
             } catch {
                 print("❌ video load:", error)
+            }
+        }
+    }
+    
+    // MARK: - User Data Fetching
+    
+    private func fetchAuthorUserIfNeeded() {
+        guard let userId = activity.user_id else { return }
+        
+        // Check if we already have the user or are loading
+        if authorUser != nil || isLoadingAuthor { return }
+        
+        // First check cache
+        if let cachedUser = UserCache.shared.getUser(id: userId) {
+            authorUser = cachedUser
+            return
+        }
+        
+        // Fetch from network if not cached
+        isLoadingAuthor = true
+        NetworkClient.shared.getUsers(with: [userId]) { result in
+            DispatchQueue.main.async {
+                self.isLoadingAuthor = false
+                switch result {
+                case .success(let users):
+                    if let user = users.first {
+                        self.authorUser = user
+                    } else {
+                        // Fallback to basic user object
+                        self.authorUser = User(id: userId, name: self.activity.user_name)
+                    }
+                case .failure:
+                    // Fallback to basic user object on network failure
+                    self.authorUser = User(id: userId, name: self.activity.user_name)
+                }
             }
         }
     }

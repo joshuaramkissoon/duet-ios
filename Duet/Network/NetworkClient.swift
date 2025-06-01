@@ -7,6 +7,7 @@
 
 import Foundation
 import UIKit
+import FirebaseAuth
 
 enum NetworkError: Error {
     case invalidUrl
@@ -122,6 +123,16 @@ class NetworkClient: NSObject {
         request.httpMethod = "POST"
         request.addValue("application/json", forHTTPHeaderField: "Content-Type")
         
+        // Add Firebase auth header for protected endpoints
+        if url.contains("/summarise") || url.contains("/groups/add-url") {
+            guard let currentUser = Auth.auth().currentUser else {
+                throw NetworkError.unknown("User not authenticated")
+            }
+            
+            let idToken = try await currentUser.getIDToken()
+            request.addValue("Bearer \(idToken)", forHTTPHeaderField: "Authorization")
+        }
+        
         do {
             let encoder = JSONEncoder()
             encoder.keyEncodingStrategy = .convertToSnakeCase
@@ -231,6 +242,11 @@ class NetworkClient: NSObject {
         getJSON(url: url, completion: completion)
     }
     
+    func getUserIdeas(userId: String, page: Int = 1, pageSize: Int = 20, completion: @escaping (Result<PaginatedFeedResponse, NetworkError>) -> Void) {
+        let url = baseUrl + "/ideas/user/\(userId)?page=\(page)&page_size=\(pageSize)"
+        getJSON(url: url, completion: completion)
+    }
+    
     // Async getActivity method for ProcessingManager
     func getActivity(id: String) async throws -> DateIdeaResponse {
         let url = baseUrl + "/activity/\(id)"
@@ -266,10 +282,17 @@ class NetworkClient: NSObject {
         getJSON(url: url, completion: completion)
     }
     
-    func searchActivities(query: String, completion: @escaping (Result<[DateIdeaResponse], NetworkError>) -> Void) {
+    func searchActivities(query: String, authorId: String? = nil, completion: @escaping (Result<[DateIdeaResponse], NetworkError>) -> Void) {
         let url = baseUrl + "/search"
-        let body = ["query": query]
-        print("📡 Searching for: \(query)")
+        var body: [String: String] = ["query": query]
+        
+        // Add author_id filter if provided
+        if let authorId = authorId {
+            body["author_id"] = authorId
+        }
+        
+        let searchDescription = authorId != nil ? "author-specific search" : "global search"
+        print("📡 \(searchDescription) for: '\(query)'\(authorId != nil ? " by author: \(authorId!)" : "")")
         
         postJSON(url: url, body: body) { (result: Result<[DateIdeaResponse], NetworkError>) in
             switch result {
@@ -289,48 +312,49 @@ class NetworkClient: NSObject {
             return
         }
         
-        let endpoint = baseUrl + "/summarise"
-        let body = ["url": url, "user_id": userId]
-        
-        guard let requestUrl = URL(string: endpoint) else {
-            completion(.failure(.invalidUrl))
-            return
-        }
-        
-        var request = URLRequest(url: requestUrl)
-        request.httpMethod = "POST"
-        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
-        
-        do {
-            let encoder = JSONEncoder()
-            encoder.keyEncodingStrategy = .convertToSnakeCase
-            request.httpBody = try encoder.encode(body)
-        } catch {
-            completion(.failure(.encodingError))
-            return
-        }
-        
-        print("📡 Background POST: \(requestUrl)")
-        
-        let task = backgroundSession.dataTask(with: request)
-        
-        // Store completion handler with task identifier
-        pendingCompletions[task.taskIdentifier] = completion
-        
-        task.resume()
-    }
-    
-    func createUser(user: User, completion: @escaping (Result<User, NetworkError>) -> Void) {
-        let endpoint = baseUrl + "/users"
-        postJSON(url: endpoint, body: user) { (result: Result<User, NetworkError>) in
-            switch result {
-            case .success(let createdUser):
-                // Cache the newly created user
-                UserCache.shared.cacheUser(createdUser)
-                print("🟢 Created and cached new user: \(createdUser.displayName)")
-                completion(.success(createdUser))
-            case .failure(let error):
-                completion(.failure(error))
+        Task {
+            do {
+                // Get Firebase auth token
+                guard let currentUser = Auth.auth().currentUser else {
+                    completion(.failure(.unknown("User not authenticated")))
+                    return
+                }
+                
+                let idToken = try await currentUser.getIDToken()
+                
+                let endpoint = baseUrl + "/summarise"
+                let body = ["url": url, "user_id": userId]
+                
+                guard let requestUrl = URL(string: endpoint) else {
+                    completion(.failure(.invalidUrl))
+                    return
+                }
+                
+                var request = URLRequest(url: requestUrl)
+                request.httpMethod = "POST"
+                request.addValue("application/json", forHTTPHeaderField: "Content-Type")
+                request.addValue("Bearer \(idToken)", forHTTPHeaderField: "Authorization")
+                
+                do {
+                    let encoder = JSONEncoder()
+                    encoder.keyEncodingStrategy = .convertToSnakeCase
+                    request.httpBody = try encoder.encode(body)
+                } catch {
+                    completion(.failure(.encodingError))
+                    return
+                }
+                
+                print("📡 Background POST with Auth: \(requestUrl)")
+                
+                let task = backgroundSession.dataTask(with: request)
+                
+                // Store completion handler with task identifier
+                pendingCompletions[task.taskIdentifier] = completion
+                
+                task.resume()
+                
+            } catch {
+                completion(.failure(.unknown("Failed to get auth token: \(error.localizedDescription)")))
             }
         }
     }
@@ -367,12 +391,21 @@ class NetworkClient: NSObject {
         postJSON(url: endpoint, body: body) { (result: Result<[User], NetworkError>) in
             switch result {
             case .success(let networkUsers):
-                // Cache the newly fetched users
-                UserCache.shared.cacheUsers(networkUsers)
+                // Convert S3 profile image URLs to CloudFront URLs before caching
+                var usersWithCloudFrontUrls = networkUsers
+                for i in 0..<usersWithCloudFrontUrls.count {
+                    if let s3ProfileImageUrl = usersWithCloudFrontUrls[i].profileImageUrl {
+                        let cloudFrontUrl = URLHelpers.convertToCloudFrontURL(s3ProfileImageUrl)
+                        usersWithCloudFrontUrls[i].profileImageUrl = cloudFrontUrl
+                    }
+                }
+                
+                // Cache the users with CloudFront URLs
+                UserCache.shared.cacheUsers(usersWithCloudFrontUrls)
                 
                 // Combine cached and network users
-                let allUsers = cachedUsers + networkUsers
-                print("🟢 Successfully fetched \(networkUsers.count) users from network, cached for future use")
+                let allUsers = cachedUsers + usersWithCloudFrontUrls
+                print("🟢 Successfully fetched \(usersWithCloudFrontUrls.count) users from network")
                 completion(.success(allUsers))
                 
             case .failure(let error):
@@ -384,6 +417,104 @@ class NetworkClient: NSObject {
                     print("❌ Network failed and no cached users available: \(error.localizedDescription)")
                     completion(.failure(error))
                 }
+            }
+        }
+    }
+    
+    func createUser(user: User, completion: @escaping (Result<User, NetworkError>) -> Void) {
+        let endpoint = baseUrl + "/users"
+        postJSON(url: endpoint, body: user) { (result: Result<User, NetworkError>) in
+            switch result {
+            case .success(var createdUser):
+                // Convert S3 profile image URL to CloudFront URL if present
+                if let s3ProfileImageUrl = createdUser.profileImageUrl {
+                    let cloudFrontUrl = URLHelpers.convertToCloudFrontURL(s3ProfileImageUrl)
+                    createdUser.profileImageUrl = cloudFrontUrl
+                    print("🔄 Converted S3 URL to CloudFront for new user: \(s3ProfileImageUrl) → \(cloudFrontUrl)")
+                }
+                
+                // Cache the newly created user with CloudFront URL
+                UserCache.shared.cacheUser(createdUser)
+                print("🟢 Created and cached new user: \(createdUser.displayName)")
+                completion(.success(createdUser))
+            case .failure(let error):
+                completion(.failure(error))
+            }
+        }
+    }
+    
+    // MARK: - Profile Image Upload
+    
+    func uploadProfileImage(imageData: Data, completion: @escaping (Result<User, NetworkError>) -> Void) {
+        Task {
+            do {
+                // Get Firebase auth token
+                guard let currentUser = Auth.auth().currentUser else {
+                    completion(.failure(.unknown("User not authenticated")))
+                    return
+                }
+                
+                let idToken = try await currentUser.getIDToken()
+                
+                // Create multipart/form-data request
+                let boundary = "Boundary-\(UUID().uuidString)"
+                let endpoint = baseUrl + "/upload-profile-image"
+                
+                guard let url = URL(string: endpoint) else {
+                    completion(.failure(.invalidUrl))
+                    return
+                }
+                
+                var request = URLRequest(url: url)
+                request.httpMethod = "POST"
+                request.addValue("Bearer \(idToken)", forHTTPHeaderField: "Authorization")
+                request.addValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+                
+                // Create multipart body
+                var body = Data()
+                
+                // Add file data
+                body.append("--\(boundary)\r\n".data(using: .utf8)!)
+                body.append("Content-Disposition: form-data; name=\"file\"; filename=\"profile.jpg\"\r\n".data(using: .utf8)!)
+                body.append("Content-Type: image/jpeg\r\n\r\n".data(using: .utf8)!)
+                body.append(imageData)
+                body.append("\r\n".data(using: .utf8)!)
+                body.append("--\(boundary)--\r\n".data(using: .utf8)!)
+                
+                request.httpBody = body
+                
+                print("📡 POST Profile Image: \(endpoint)")
+                
+                let (data, response) = try await URLSession.shared.data(for: request)
+                
+                guard let httpResponse = response as? HTTPURLResponse else {
+                    completion(.failure(.invalidResponse))
+                    return
+                }
+                
+                guard 200...299 ~= httpResponse.statusCode else {
+                    completion(.failure(.unexpectedStatusCode(httpResponse.statusCode)))
+                    return
+                }
+                
+                var updatedUser: User = try decodeFromJSON(data: data)
+                
+                // Convert S3 profile image URL to CloudFront URL for better performance
+                if let s3ProfileImageUrl = updatedUser.profileImageUrl {
+                    let cloudFrontUrl = URLHelpers.convertToCloudFrontURL(s3ProfileImageUrl)
+                    updatedUser.profileImageUrl = cloudFrontUrl
+                    print("🔄 Converted S3 URL to CloudFront: \(s3ProfileImageUrl) → \(cloudFrontUrl)")
+                }
+                
+                // Update cache with new user data (now with CloudFront URL)
+                UserCache.shared.cacheUser(updatedUser)
+                print("🟢 Successfully uploaded profile image and updated cache")
+                
+                completion(.success(updatedUser))
+                
+            } catch {
+                print("❌ Profile image upload error: \(error)")
+                completion(.failure(.unknown(error.localizedDescription)))
             }
         }
     }
