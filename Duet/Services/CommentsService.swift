@@ -64,7 +64,8 @@ final class CommentsService {
             return
         }
         
-        NetworkClient.shared.getUsers(with: uniqueUserIds) { result in
+        // Force refresh stale profile data for comment authors to ensure up-to-date profile images
+        NetworkClient.shared.getUsers(with: uniqueUserIds, forceRefreshStaleProfiles: true) { result in
             DispatchQueue.main.async {
                 switch result {
                 case .success(let users):

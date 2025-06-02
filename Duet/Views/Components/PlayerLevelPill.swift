@@ -24,8 +24,9 @@ struct PlayerLevelPill: View {
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
         .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
+            RoundedRectangle(cornerRadius: 16)
                 .fill(level.backgroundColor)
+                .stroke(level.foregroundColor.opacity(0.2), lineWidth: 1)
         )
     }
 }

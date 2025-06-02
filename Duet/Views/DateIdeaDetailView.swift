@@ -75,8 +75,11 @@ struct DateIdeaDetailView: View {
                             VideoAuthorAttribution(
                                 authorHandle: authorHandle,
                                 authorUrl: authorUrl,
+                                originalSourceUrl: currentDateIdeaResponse.original_source_url,
                                 platform: platform
                             ) { url in
+                                openURL(url)
+                            } onSourceTap: { url in
                                 openURL(url)
                             }
                             .padding(.horizontal)
@@ -279,6 +282,13 @@ struct DateIdeaDetailView: View {
                             } label: {
                                 Label("Open Source", systemImage: "link")
                             }
+                            
+                            Button {
+                                UIPasteboard.general.string = src
+                                toastManager.success("Copied to clipboard")
+                            } label: {
+                                Label("Copy Source Link", systemImage: "doc.on.clipboard")
+                            }
                         }
                     } label: {
                         Image(systemName: "ellipsis")
@@ -291,6 +301,9 @@ struct DateIdeaDetailView: View {
                 ShareToGroupView(idea: currentDateIdeaResponse, isPresented: $showShareSheet, toastManager: toastManager)
             }
             .withAppBackground()
+        }
+        .onAppear {
+            print("Date idea: \(dateIdea)")
         }
     }
     

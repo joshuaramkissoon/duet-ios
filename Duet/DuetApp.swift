@@ -19,13 +19,14 @@ struct DuetApp: App {
     @StateObject private var activityVM = ActivityHistoryViewModel()
     @StateObject private var exploreVM = ExploreViewModel()
     @StateObject private var processingManager = ProcessingManager(toast: ToastManager())
+    @StateObject private var creditUIManager = CreditUIManager()
 
     init() {
         FirebaseApp.configure()
         configureAudioSession()
         
-        // Clean up expired user cache entries on app start
-        UserCache.shared.cleanupExpired()
+        // Clear user cache on app startup to ensure fresh data (especially profile images)
+        UserCache.shared.clearCacheOnAppStartup()
     }
     
     private func configureAudioSession() {
@@ -48,10 +49,14 @@ struct DuetApp: App {
                     .environmentObject(activityVM)
                     .environmentObject(exploreVM)
                     .environmentObject(processingManager)
+                    .environmentObject(creditUIManager)
                     .onOpenURL(perform: handleInviteURL(_:))
                     .onAppear {
                         // Configure ProcessingManager with proper references
                         processingManager.updateToast(toastManager)
+                        
+                        // Configure CreditService with UI manager
+                        CreditService.shared.configure(with: creditUIManager)
                     }
                 
                 if let result = groupsVM.joinResult {
@@ -80,6 +85,10 @@ struct DuetApp: App {
             }
         } else if url.host == "share" {
             handleSharedUrl(from: url)
+        } else if url.host == "payment-success" {
+            handlePaymentSuccess()
+        } else if url.host == "payment-cancel" {
+            handlePaymentCancel()
         }
     }
     
@@ -98,5 +107,25 @@ struct DuetApp: App {
         } else {
             toastManager.error("You must be signed in to process shared videos.")
         }
+    }
+    
+    private func handlePaymentSuccess() {
+        // Show success toast
+        toastManager.success("🎉 Payment successful! Credits added to your account.")
+        
+        // Refresh credit balance and history to show new credits
+        Task {
+            await CreditService.shared.refreshCreditData()
+        }
+        
+        // Hide any open credit-related sheets
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            creditUIManager.dismissAllSheets()
+        }
+    }
+    
+    private func handlePaymentCancel() {
+        // Show informational toast (not an error since user chose to cancel)
+        toastManager.error("Payment cancelled. You can try again anytime.")
     }
 }

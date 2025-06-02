@@ -36,6 +36,8 @@ class AuthenticationViewModel: ObservableObject {
             if let user {
                 SharedUserManager.shared.setCurrentUserId(user.uid)
                 self.fetchCurrentUserInfo(for: user)
+                // Store/refresh the Firebase ID token
+                self.refreshAndStoreAuthToken()
             }
             else {
                 SharedUserManager.shared.clearCurrentUser()
@@ -57,6 +59,17 @@ class AuthenticationViewModel: ObservableObject {
         else { return }
         
         createRemoteUserRecord(for: user)
+        
+        // Store the Firebase ID token for Share Extension use
+        Task {
+            do {
+                let idToken = try await user.getIDToken()
+                SharedUserManager.shared.setAuthToken(idToken)
+                print("🟢 Stored Firebase ID token for Share Extension")
+            } catch {
+                print("❌ Failed to get/store Firebase ID token: \(error)")
+            }
+        }
     }
     
     private func fetchCurrentUserInfo(for firebaseUser: FirebaseAuth.User) {
@@ -175,6 +188,21 @@ class AuthenticationViewModel: ObservableObject {
                 catch {
                     errorMessage = error.localizedDescription
                 }
+            }
+        }
+    }
+    
+    /// Refresh and store the current user's Firebase ID token for Share Extension use
+    func refreshAndStoreAuthToken() {
+        guard let user = user else { return }
+        
+        Task {
+            do {
+                let idToken = try await user.getIDToken(forcingRefresh: true)
+                SharedUserManager.shared.setAuthToken(idToken)
+                print("🟢 Refreshed and stored Firebase ID token")
+            } catch {
+                print("❌ Failed to refresh/store Firebase ID token: \(error)")
             }
         }
     }

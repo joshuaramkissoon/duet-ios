@@ -7,6 +7,7 @@ class ShareHostingController: UIViewController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
+        
         // Ensure Firebase configured for Firestore usage
         if FirebaseApp.app() == nil {
             FirebaseApp.configure()

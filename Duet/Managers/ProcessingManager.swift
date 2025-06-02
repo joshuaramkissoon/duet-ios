@@ -12,6 +12,7 @@ class ProcessingManager: ObservableObject {
     private var groupListeners: [String: ListenerRegistration] = [:]
     private var toast: ToastManager
     private weak var activityVM: ActivityHistoryViewModel?
+    private let creditService = CreditService.shared
     
     init(toast: ToastManager, activityVM: ActivityHistoryViewModel? = nil) {
         self.toast = toast
@@ -191,10 +192,28 @@ class ProcessingManager: ObservableObject {
             throw ProcessingError.userNotAuthenticated
         }
         
+        // Pre-emptive credit check with UI handling
+        if !creditService.checkCreditsForAction(creditsRequired: 1) {
+            throw ProcessingError.insufficientCredits
+        }
+        
         let endpoint = NetworkClient.shared.baseUrl + "/summarise"
         let body = ProcessingRequest(url: url, userId: userId)
         
-        return try await NetworkClient.shared.postJSON(url: endpoint, body: body)
+        do {
+            let response: ProcessingResponse = try await NetworkClient.shared.postJSON(url: endpoint, body: body)
+            // Optimistically deduct credits on successful request
+            await MainActor.run {
+                creditService.deductCredits(1)
+            }
+            return response
+        } catch {
+            // Handle credit errors
+            if creditService.handleInsufficientCreditsError(error) {
+                throw ProcessingError.insufficientCredits
+            }
+            throw error
+        }
     }
     
     func processVideoForGroup(url: String, groupId: String) async throws -> ProcessingResponse {
@@ -202,10 +221,28 @@ class ProcessingManager: ObservableObject {
             throw ProcessingError.userNotAuthenticated
         }
         
+        // Pre-emptive credit check with UI handling
+        if !creditService.checkCreditsForAction(creditsRequired: 1) {
+            throw ProcessingError.insufficientCredits
+        }
+        
         let endpoint = NetworkClient.shared.baseUrl + "/groups/add-url"
         let body = GroupProcessingRequest(url: url, userId: userId, groupId: groupId)
         
-        return try await NetworkClient.shared.postJSON(url: endpoint, body: body)
+        do {
+            let response: ProcessingResponse = try await NetworkClient.shared.postJSON(url: endpoint, body: body)
+            // Optimistically deduct credits on successful request
+            await MainActor.run {
+                creditService.deductCredits(1)
+            }
+            return response
+        } catch {
+            // Handle credit errors
+            if creditService.handleInsufficientCreditsError(error) {
+                throw ProcessingError.insufficientCredits
+            }
+            throw error
+        }
     }
     
     func retryProcessing(job: ProcessingJob) async throws {
@@ -367,6 +404,7 @@ enum ProcessingError: LocalizedError {
     case userNotAuthenticated
     case invalidURL
     case networkError(String)
+    case insufficientCredits
     
     var errorDescription: String? {
         switch self {
@@ -376,6 +414,8 @@ enum ProcessingError: LocalizedError {
             return "Please enter a valid URL"
         case .networkError(let message):
             return message
+        case .insufficientCredits:
+            return "Not enough credits to process video"
         }
     }
 } 

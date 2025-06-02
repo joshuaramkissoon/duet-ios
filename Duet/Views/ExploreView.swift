@@ -658,21 +658,22 @@ struct ExploreCard: View {
         // Check if we already have the user or are loading
         if authorUser != nil || isLoadingAuthor { return }
         
-        // First check cache
-        if let cachedUser = UserCache.shared.getUser(id: userId) {
+        // First check cache - but force refresh if profile data is stale
+        if let cachedUser = UserCache.shared.getUser(id: userId, allowStaleProfileData: false) {
             authorUser = cachedUser
             return
         }
         
-        // Fetch from network if not cached
+        // Fetch from network if not cached or profile data is stale
         isLoadingAuthor = true
-        NetworkClient.shared.getUsers(with: [userId]) { result in
+        NetworkClient.shared.getUsers(with: [userId], forceRefreshStaleProfiles: true) { result in
             DispatchQueue.main.async {
                 self.isLoadingAuthor = false
                 switch result {
                 case .success(let users):
                     if let user = users.first {
                         self.authorUser = user
+                        print("🔄 Refreshed user data for \(user.displayName) (profile data was stale)")
                     } else {
                         // Fallback to basic user object
                         self.authorUser = User(id: userId, name: self.activity.user_name)

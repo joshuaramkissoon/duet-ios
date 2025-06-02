@@ -6,9 +6,6 @@
 //
 
 import Foundation
-import Firebase
-import FirebaseAuth
-import FirebaseFirestore
 
 class ShareExtensionAPI {
     private let baseUrl = "https://duet-backend-490xp.kinsta.app"
@@ -20,6 +17,7 @@ class ShareExtensionAPI {
         guard let userId = SharedUserManager.shared.currentUserId else {
             throw ShareExtensionError.userNotAuthenticated
         }
+        print("🔐 Share Extension using user ID: \(userId)")
         let body: [String: String] = [
             "url": url,
             "user_id": userId
@@ -35,6 +33,7 @@ class ShareExtensionAPI {
         guard !groupId.isEmpty else {
             throw ShareExtensionError.missingGroupId
         }
+        print("🔐 Share Extension using user ID: \(userId) for group: \(groupId)")
         let body: [String: String] = [
             "url": url,
             "user_id": userId,
@@ -48,13 +47,15 @@ class ShareExtensionAPI {
         guard let requestUrl = URL(string: baseUrl + endpoint) else {
             throw ShareExtensionError.invalidURL
         }
+        print("📡 POST with Auth: \(requestUrl), body: \(body)")
         
-        // Get Firebase auth token
-        guard let currentUser = Auth.auth().currentUser else {
+        // Get stored Firebase auth token from SharedUserManager
+        guard let idToken = SharedUserManager.shared.currentAuthToken else {
+            print("❌ No valid auth token found in SharedUserManager")
             throw ShareExtensionError.userNotAuthenticated
         }
         
-        let idToken = try await currentUser.getIDToken()
+        print("🔐 Using stored auth token (length: \(idToken.count) chars)")
         
         var request = URLRequest(url: requestUrl)
         request.httpMethod = "POST"
@@ -72,6 +73,7 @@ class ShareExtensionAPI {
         let (_, response) = try await URLSession.shared.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse,
               200...299 ~= httpResponse.statusCode else {
+            print("❌ Server responded with status: \((response as? HTTPURLResponse)?.statusCode ?? -1)")
             throw ShareExtensionError.serverError
         }
         print("✅ Request to \(endpoint) completed successfully")

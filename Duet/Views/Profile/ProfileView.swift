@@ -8,12 +8,17 @@
 import SwiftUI
 import FirebaseAuth
 import PhotosUI
+import UIKit
 
 struct ProfileView: View {
     @EnvironmentObject private var authVM: AuthenticationViewModel
     @EnvironmentObject private var toast: ToastManager
+    @EnvironmentObject private var creditUIManager: CreditUIManager
     @StateObject private var vm = ProfileViewModel()
     @StateObject private var libraryVM = MyLibraryViewModel()
+    @StateObject private var creditService = CreditService.shared
+    @State private var quickPurchasePackage: CreditPackage?
+    @State private var currency: String = "gbp"
 
     var body: some View {
         ScrollView(.vertical, showsIndicators: false) {
@@ -26,6 +31,9 @@ struct ProfileView: View {
 
                 // MARK: — My Library Section
                 myLibrarySection
+
+                // MARK: — Recent Transactions Section
+                recentTransactionsSection
 
                 Spacer(minLength: 200)
 
@@ -61,6 +69,17 @@ struct ProfileView: View {
                 libraryVM.setAuthorId(userId)
                 libraryVM.backgroundLoadUserIdeas()
             }
+            
+            // Fetch quick purchase package for "Buy More" button
+            Task {
+                await fetchQuickPurchasePackage()
+            }
+            
+            // Note: We rely on CreditService.shared local cache instead of fetching every time
+            // Credit data gets updated automatically when:
+            // - User performs credit-consuming actions
+            // - Payment succeeds
+            // - App initially loads and fetches user data
         }
     }
     
@@ -93,8 +112,16 @@ struct ProfileView: View {
                             .font(.caption).monospaced()
                             .foregroundColor(.secondary)
                         
-                        // Player Level Pill
-                        PlayerLevelPill(level: currentUser.playerLevelInfo)
+                        HStack(spacing: 8) {
+                            // Credits Badge
+                            CreditBadge()
+                            
+                            // Player Level Pill - flexible to avoid wrapping
+                            PlayerLevelPill(level: currentUser.playerLevelInfo)
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.7)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     } else {
                         Text("Member since recently")
                             .font(.caption).monospaced()
@@ -102,16 +129,18 @@ struct ProfileView: View {
                         
                         // Default level pill
                         PlayerLevelPill(level: .ideaSpark)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
                     }
                 }
                 
                 Spacer()
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            
-            Spacer()
         }
-        .padding()
+        .padding(.horizontal, 16)
+        .padding(.vertical, 16)
+        .padding(.trailing, 10) // Ensure 10pt padding from trailing edge
     }
     
     // MARK: - My Library Section
@@ -153,6 +182,106 @@ struct ProfileView: View {
             )
         }
         .buttonStyle(.plain)
+    }
+    
+    // MARK: - Recent Transactions Section
+    @ViewBuilder
+    private var recentTransactionsSection: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack {
+                Text("Recent Transactions")
+                    .font(.headline)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.primary)
+                
+                Spacer()
+                
+                Button(action: {
+                    creditUIManager.showCreditsPage()
+                }) {
+                    Text("View All")
+                        .font(.subheadline)
+                        .foregroundColor(.appPrimary)
+                }
+                .buttonStyle(.plain)
+            }
+            
+            if creditService.isLoading {
+                loadingTransactionsView
+            } else if recentTransactions.isEmpty {
+                emptyTransactionsView
+            } else {
+                transactionsListView
+            }
+        }
+        .padding()
+        .background(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(Color(.systemBackground))
+                .shadow(color: Color.black.opacity(0.05), radius: 6, x: 0, y: 2)
+        )
+    }
+    
+    private var recentTransactions: [CreditTransaction] {
+        Array(creditService.creditHistory.prefix(3))
+    }
+    
+    private var loadingTransactionsView: some View {
+        VStack(spacing: 12) {
+            ForEach(0..<2, id: \.self) { _ in
+                HStack {
+                    Circle()
+                        .fill(.gray.opacity(0.2))
+                        .frame(width: 24, height: 24)
+                    
+                    VStack(alignment: .leading, spacing: 4) {
+                        RoundedRectangle(cornerRadius: 4)
+                            .fill(.gray.opacity(0.2))
+                            .frame(height: 12)
+                            .frame(maxWidth: .infinity)
+                        
+                        RoundedRectangle(cornerRadius: 4)
+                            .fill(.gray.opacity(0.1))
+                            .frame(height: 10)
+                            .frame(width: 100)
+                    }
+                    
+                    Spacer()
+                    
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(.gray.opacity(0.2))
+                        .frame(width: 40, height: 12)
+                }
+            }
+        }
+        .redacted(reason: .placeholder)
+    }
+    
+    private var emptyTransactionsView: some View {
+        VStack(spacing: 8) {
+            Image(systemName: "creditcard")
+                .font(.title2)
+                .foregroundColor(.gray.opacity(0.5))
+            
+            Text("No transactions yet")
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+            
+            Text("Your credit activity will appear here")
+                .font(.caption)
+                .foregroundColor(.secondary.opacity(0.7))
+                .multilineTextAlignment(.center)
+        }
+        .padding(.vertical, 20)
+        .frame(maxWidth: .infinity)
+    }
+    
+    private var transactionsListView: some View {
+        VStack(spacing: 12) {
+            ForEach(recentTransactions) { transaction in
+                ProfileTransactionRow(transaction: transaction)
+            }
+        }
     }
     
     // MARK: - Profile Image Section
@@ -213,7 +342,7 @@ struct ProfileView: View {
             }
             // Lowest priority: Initials fallback
             else {
-                UserProfileImage(user: User(id: user.uid, name: user.displayName), diam: 80)
+                ProfileImage(user: User(id: user.uid, name: user.displayName), diam: 80)
             }
             
             // Camera icon overlay to indicate tappability
@@ -227,7 +356,7 @@ struct ProfileView: View {
                         .padding(6)
                         .background(Color.black.opacity(0.6))
                         .clipShape(Circle())
-                        .offset(x: -5, y: -5)
+                        .offset(x: 3, y: -1)
                 }
             }
             .frame(width: 80, height: 80)
@@ -257,6 +386,97 @@ struct ProfileView: View {
         } else {
             ProfileImage(user: User(id: user.uid, name: user.displayName), diam: 80)
         }
+    }
+    
+    private func refreshData() async {
+        await creditService.refreshCreditData()
+    }
+    
+    // MARK: - Quick Purchase Credits
+    private func fetchQuickPurchasePackage() async {
+        await withCheckedContinuation { continuation in
+            NetworkClient.shared.getCreditPackages { result in
+                DispatchQueue.main.async {
+                    switch result {
+                    case .success(let packagesResponse):
+                        // Find the smallest package for quick purchase
+                        self.quickPurchasePackage = packagesResponse.packages.min { $0.credits < $1.credits }
+                        self.currency = packagesResponse.effectiveCurrency
+                        
+                    case .failure(let error):
+                        print("❌ Failed to fetch quick purchase package: \(error.localizedDescription)")
+                        self.quickPurchasePackage = nil
+                        self.currency = "gbp" // Default fallback
+                    }
+                    
+                    continuation.resume()
+                }
+            }
+        }
+    }
+    
+    private func quickPurchaseCredits(package: CreditPackage) {
+        NetworkClient.shared.createStripeCheckoutSession(packageId: package.id) { result in
+            DispatchQueue.main.async {
+                switch result {
+                case .success(let checkoutResponse):
+                    // Open Stripe checkout URL
+                    if let url = URL(string: checkoutResponse.url) {
+                        if UIApplication.shared.canOpenURL(url) {
+                            UIApplication.shared.open(url)
+                        } else {
+                            toast.error("Unable to open payment page")
+                        }
+                    } else {
+                        toast.error("Invalid payment URL received")
+                    }
+                    
+                case .failure(let error):
+                    toast.error("Payment failed: \(error.localizedDescription)")
+                }
+            }
+        }
+    }
+}
+
+// MARK: — Profile Transaction Row (Compact Version)
+struct ProfileTransactionRow: View {
+    let transaction: CreditTransaction
+    
+    var body: some View {
+        HStack(spacing: 12) {
+            // Transaction icon (smaller than full view)
+            transactionIcon
+            
+            // Transaction details
+            VStack(alignment: .leading, spacing: 2) {
+                Text(transaction.description)
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                    .foregroundColor(.primary)
+                    .lineLimit(1)
+                
+                Text(transaction.formattedDate)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            
+            Spacer()
+            
+            // Amount
+            Text(transaction.formattedAmount)
+                .font(.subheadline)
+                .fontWeight(.semibold)
+                .foregroundColor(transaction.isPositive ? .appAccent : .primary)
+        }
+    }
+    
+    private var transactionIcon: some View {
+        CreditIcon(
+            type: CreditIconType.from(transactionType: transaction.transactionType),
+            size: .caption,
+            frameSize: 24
+        )
     }
 }
 

@@ -20,6 +20,10 @@ extension Color {
     static let appSuccess = Color.green
     static let appDivider = Color.gray.opacity(0.2)
     static let appPrimaryLightBackground = Color.appPrimary.opacity(0.1) // Light primary background for buttons
+    static let appSecondaryLightBackground = Color.appSecondary.opacity(0.1) // Light secondary background
+    static let appAccentLightBackground = Color.appAccent.opacity(0.1) // Light accent background
+    static let warmOrange = Color(hex: "E88D67")
+    static let softCream = Color(hex: "F8F5F2")
     
     // Pastel colors for UI elements
     static let lightLavender = Color(hex: "D9D7F1")  // Light lavender background

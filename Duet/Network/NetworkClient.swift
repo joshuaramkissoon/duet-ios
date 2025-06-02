@@ -43,8 +43,8 @@ enum NetworkError: Error {
 
 class NetworkClient: NSObject {
     static let shared = NetworkClient()
-//    let baseUrl = "https://duet-backend-490xp.kinsta.app" // Made public for ProcessingManager
-    let baseUrl = "https://8dca7b206740.ngrok.app"
+   let baseUrl = "https://duet-backend-490xp.kinsta.app" // Made public for ProcessingManager
+    // let baseUrl = "https://8dca7b206740.ngrok.app"
     
     private override init() {}
     
@@ -74,12 +74,22 @@ class NetworkClient: NSObject {
     }
     
     private func getJSON<T: Decodable>(url: String, completion: @escaping (Result<T, NetworkError>) -> Void) {
+        getJSON(url: url, authToken: nil, completion: completion)
+    }
+    
+    private func getJSON<T: Decodable>(url: String, authToken: String?, completion: @escaping (Result<T, NetworkError>) -> Void) {
         guard let url = URL(string: url) else {
             completion(.failure(.invalidUrl))
             return
         }
         
-        let request = URLRequest(url: url)
+        var request = URLRequest(url: url)
+        
+        // Add authorization header if token is provided
+        if let token = authToken {
+            request.addValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+        
         print("📡 GET: \(url)")
         
         URLSession.shared.dataTask(with: request) { data, response, error in
@@ -360,6 +370,10 @@ class NetworkClient: NSObject {
     }
     
     func getUsers(with ids: [String], completion: @escaping (Result<[User], NetworkError>) -> Void) {
+        getUsers(with: ids, forceRefreshStaleProfiles: false, completion: completion)
+    }
+    
+    func getUsers(with ids: [String], forceRefreshStaleProfiles: Bool = false, completion: @escaping (Result<[User], NetworkError>) -> Void) {
         // Remove duplicates and empty strings
         let uniqueIds = Array(Set(ids)).filter { !$0.isEmpty }
         
@@ -368,22 +382,39 @@ class NetworkClient: NSObject {
             return
         }
         
-        // First, get all cached users
-        let cachedUsers = UserCache.shared.getUsers(ids: uniqueIds)
+        // Get cached users, but force refresh if profile data is stale and we're checking for that
+        var cachedUsers: [User] = []
+        var missingIds: [String] = []
         
-        // Find which user IDs are missing from cache
-        let cachedUserIds = Set(cachedUsers.map { $0.id })
-        let missingIds = uniqueIds.filter { !cachedUserIds.contains($0) }
+        for id in uniqueIds {
+            if forceRefreshStaleProfiles {
+                // Check for stale profile data - if stale, treat as missing to force refresh
+                if let user = UserCache.shared.getUser(id: id, allowStaleProfileData: false) {
+                    cachedUsers.append(user)
+                } else {
+                    missingIds.append(id)
+                }
+            } else {
+                // Normal cache check
+                if let user = UserCache.shared.getUser(id: id) {
+                    cachedUsers.append(user)
+                } else {
+                    missingIds.append(id)
+                }
+            }
+        }
         
-        // If all users are cached, return immediately
+        // If all users are cached and fresh, return immediately
         if missingIds.isEmpty {
             print("🟢 All \(cachedUsers.count) users loaded from cache")
             completion(.success(cachedUsers))
             return
         }
         
-        // Fetch missing users from network
-        print("🔍 Cache hit: \(cachedUsers.count), fetching \(missingIds.count) from network")
+        // Fetch missing/stale users from network
+        let staleCacheCount = cachedUsers.count
+        let networkCount = missingIds.count
+        print("🔍 Cache hit: \(staleCacheCount), fetching \(networkCount) from network\(forceRefreshStaleProfiles ? " (refreshing stale profile data)" : "")")
         
         let endpoint = baseUrl + "/users/by-ids"
         let body = ["ids": missingIds]
@@ -435,10 +466,180 @@ class NetworkClient: NSObject {
                 
                 // Cache the newly created user with CloudFront URL
                 UserCache.shared.cacheUser(createdUser)
+                
+                // Update credit cache with fresh user data
+                CreditService.shared.updateCreditsFromUser(createdUser)
+                
                 print("🟢 Created and cached new user: \(createdUser.displayName)")
                 completion(.success(createdUser))
             case .failure(let error):
                 completion(.failure(error))
+            }
+        }
+    }
+    
+    // MARK: - Credit Management Methods
+    
+    func getUserCredits(completion: @escaping (Result<UserCredits, NetworkError>) -> Void) {
+        Task {
+            do {
+                // Get Firebase auth token
+                guard let currentUser = Auth.auth().currentUser else {
+                    completion(.failure(.unknown("User not authenticated")))
+                    return
+                }
+                
+                let idToken = try await currentUser.getIDToken()
+                let endpoint = baseUrl + "/user/credits"
+                
+                getJSON(url: endpoint, authToken: idToken, completion: completion)
+            } catch {
+                completion(.failure(.unknown("Failed to get auth token: \(error.localizedDescription)")))
+            }
+        }
+    }
+    
+    func getCreditHistory(completion: @escaping (Result<CreditHistory, NetworkError>) -> Void) {
+        Task {
+            do {
+                // Get Firebase auth token
+                guard let currentUser = Auth.auth().currentUser else {
+                    completion(.failure(.unknown("User not authenticated")))
+                    return
+                }
+                
+                let idToken = try await currentUser.getIDToken()
+                let endpoint = baseUrl + "/user/credit-history"
+                
+                getJSON(url: endpoint, authToken: idToken, completion: completion)
+            } catch {
+                completion(.failure(.unknown("Failed to get auth token: \(error.localizedDescription)")))
+            }
+        }
+    }
+    
+    func getCreditPackages(completion: @escaping (Result<CreditPackagesResponse, NetworkError>) -> Void) {
+        let endpoint = baseUrl + "/credit-packages"
+        getJSON(url: endpoint, completion: completion)
+    }
+    
+    func createStripeCheckoutSession(packageId: String, completion: @escaping (Result<CreateCheckoutSessionResponse, NetworkError>) -> Void) {
+        Task {
+            do {
+                // Get Firebase auth token
+                guard let currentUser = Auth.auth().currentUser else {
+                    completion(.failure(.unknown("User not authenticated")))
+                    return
+                }
+                
+                let idToken = try await currentUser.getIDToken()
+                let endpoint = baseUrl + "/create-checkout-session"
+                
+                var request = URLRequest(url: URL(string: endpoint)!)
+                request.httpMethod = "POST"
+                request.addValue("Bearer \(idToken)", forHTTPHeaderField: "Authorization")
+                request.addValue("application/json", forHTTPHeaderField: "Content-Type")
+                
+                let checkoutRequest = CreateCheckoutSessionRequest(packageId: packageId)
+                
+                let encoder = JSONEncoder()
+                encoder.keyEncodingStrategy = .convertToSnakeCase
+                request.httpBody = try encoder.encode(checkoutRequest)
+                
+                print("📡 POST Create Stripe Checkout: \(endpoint)")
+                
+                URLSession.shared.dataTask(with: request) { data, response, error in
+                    if let _ = error {
+                        completion(.failure(.unknown(nil)))
+                        return
+                    }
+                    
+                    guard let httpResponse = response as? HTTPURLResponse else {
+                        completion(.failure(.invalidResponse))
+                        return
+                    }
+                    
+                    if httpResponse.statusCode != 200 {
+                        completion(.failure(.unexpectedStatusCode(httpResponse.statusCode)))
+                        return
+                    }
+                    
+                    guard let data = data else {
+                        completion(.failure(.noData))
+                        return
+                    }
+                    
+                    do {
+                        let decodedObject: CreateCheckoutSessionResponse = try self.decodeFromJSON(data: data)
+                        completion(.success(decodedObject))
+                    } catch {
+                        print("Decoding error: \(error)")
+                        completion(.failure(.decodingError))
+                    }
+                }.resume()
+                
+            } catch {
+                completion(.failure(.unknown("Failed to get auth token: \(error.localizedDescription)")))
+            }
+        }
+    }
+    
+    func addCredits(to userId: String, amount: Int, reason: String, completion: @escaping (Result<AddCreditsResponse, NetworkError>) -> Void) {
+        Task {
+            do {
+                // Get Firebase auth token
+                guard let currentUser = Auth.auth().currentUser else {
+                    completion(.failure(.unknown("User not authenticated")))
+                    return
+                }
+                
+                let idToken = try await currentUser.getIDToken()
+                let endpoint = baseUrl + "/admin/add-credits"
+                
+                var request = URLRequest(url: URL(string: endpoint)!)
+                request.httpMethod = "POST"
+                request.addValue("Bearer \(idToken)", forHTTPHeaderField: "Authorization")
+                request.addValue("application/json", forHTTPHeaderField: "Content-Type")
+                
+                let addCreditsRequest = AddCreditsRequest(userId: userId, amount: amount, reason: reason)
+                let encoder = JSONEncoder()
+                encoder.keyEncodingStrategy = .convertToSnakeCase
+                request.httpBody = try encoder.encode(addCreditsRequest)
+                
+                print("📡 POST Admin Add Credits: \(endpoint)")
+                
+                URLSession.shared.dataTask(with: request) { data, response, error in
+                    if let _ = error {
+                        completion(.failure(.unknown(nil)))
+                        return
+                    }
+                    
+                    guard let httpResponse = response as? HTTPURLResponse else {
+                        completion(.failure(.invalidResponse))
+                        return
+                    }
+                    
+                    if httpResponse.statusCode != 200 {
+                        completion(.failure(.unexpectedStatusCode(httpResponse.statusCode)))
+                        return
+                    }
+                    
+                    guard let data = data else {
+                        completion(.failure(.noData))
+                        return
+                    }
+                    
+                    do {
+                        let decodedObject: AddCreditsResponse = try self.decodeFromJSON(data: data)
+                        completion(.success(decodedObject))
+                    } catch {
+                        print("Decoding error: \(error)")
+                        completion(.failure(.decodingError))
+                    }
+                }.resume()
+                
+            } catch {
+                completion(.failure(.unknown("Failed to get auth token: \(error.localizedDescription)")))
             }
         }
     }
@@ -508,6 +709,10 @@ class NetworkClient: NSObject {
                 
                 // Update cache with new user data (now with CloudFront URL)
                 UserCache.shared.cacheUser(updatedUser)
+                
+                // Update credit cache with fresh user data
+                CreditService.shared.updateCreditsFromUser(updatedUser)
+                
                 print("🟢 Successfully uploaded profile image and updated cache")
                 
                 completion(.success(updatedUser))

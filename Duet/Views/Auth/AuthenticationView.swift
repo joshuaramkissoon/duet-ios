@@ -14,6 +14,7 @@ struct AuthenticationView: View {
     @EnvironmentObject private var groupsVM: GroupsViewModel
     @EnvironmentObject private var toast: ToastManager
     @EnvironmentObject private var activityVM: ActivityHistoryViewModel
+    @EnvironmentObject private var creditUIManager: CreditUIManager
     @State private var showingError = false
     
     @ViewBuilder
@@ -38,6 +39,20 @@ struct AuthenticationView: View {
                 .onChange(of: vm.errorMessage, { oldValue, newValue in
                     showingError = (newValue != nil)
                 })
+                .onChange(of: vm.state) { oldValue, newValue in
+                    // Initialize credit data when user becomes authenticated
+                    if newValue == .authenticated && oldValue != .authenticated {
+                        Task {
+                            await CreditService.shared.refreshCreditData()
+                        }
+                    }
+                }
+        }
+        .sheet(isPresented: $creditUIManager.showCreditsView) {
+            CreditsView()
+        }
+        .sheet(isPresented: $creditUIManager.showPurchaseCreditsSheet) {
+            PurchaseCreditsSheet()
         }
         .toast($toast.state) 
     }

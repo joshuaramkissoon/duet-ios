@@ -12,6 +12,7 @@ class UserCache {
     private let userDefaults = UserDefaults.standard
     private let cacheKey = "duet_user_cache"
     private let maxCacheAge: TimeInterval = 24 * 60 * 60 // 24 hours
+    private let profileDataStaleThreshold: TimeInterval = 2 * 60 * 60 // 2 hours - shorter for profile data
     
     private init() {}
     
@@ -23,6 +24,10 @@ class UserCache {
         var isExpired: Bool {
             Date().timeIntervalSince(timestamp) > UserCache.shared.maxCacheAge
         }
+        
+        var isProfileDataStale: Bool {
+            Date().timeIntervalSince(timestamp) > UserCache.shared.profileDataStaleThreshold
+        }
     }
     
     // MARK: - Public Methods
@@ -32,6 +37,20 @@ class UserCache {
         guard let cachedUser = getCachedUser(id: id), !cachedUser.isExpired else {
             return nil
         }
+        return cachedUser.user
+    }
+    
+    /// Get a single user from cache, with option to check for stale profile data
+    func getUser(id: String, allowStaleProfileData: Bool = true) -> User? {
+        guard let cachedUser = getCachedUser(id: id), !cachedUser.isExpired else {
+            return nil
+        }
+        
+        // If we don't allow stale profile data and it's stale, return nil to force refresh
+        if !allowStaleProfileData && cachedUser.isProfileDataStale {
+            return nil
+        }
+        
         return cachedUser.user
     }
     
@@ -69,6 +88,12 @@ class UserCache {
         userDefaults.removeObject(forKey: cacheKey)
     }
     
+    /// Clear cache on app startup to ensure fresh data
+    func clearCacheOnAppStartup() {
+        clearAll()
+        print("🧹 Cleared user cache on app startup for fresh data")
+    }
+    
     /// Check if a user is cached and not expired
     func isCached(id: String) -> Bool {
         guard let cachedUser = getCachedUser(id: id) else { return false }
@@ -95,6 +120,12 @@ class UserCache {
             saveCache(cache)
             print("🧹 Cleaned up \(expiredKeys.count) expired user cache entries")
         }
+    }
+    
+    /// Check if user profile data is likely stale and should be refreshed
+    func isProfileDataStale(id: String) -> Bool {
+        guard let cachedUser = getCachedUser(id: id) else { return true }
+        return cachedUser.isProfileDataStale
     }
     
     // MARK: - Private Methods

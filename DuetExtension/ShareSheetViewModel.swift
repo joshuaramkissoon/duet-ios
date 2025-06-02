@@ -1,7 +1,7 @@
 import Foundation
 import UniformTypeIdentifiers
-import FirebaseFirestore
 import SwiftUI
+import FirebaseFirestore
 
 struct ExtensionGroup: Identifiable, Hashable {
     let id: String
@@ -103,6 +103,7 @@ final class ShareSheetViewModel: ObservableObject {
                 self.groups = list.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
             } catch {
                 self.error = error.localizedDescription
+                print("❌ Failed to load groups: \(error)")
             }
         }
     }

@@ -91,18 +91,20 @@ struct User: Identifiable, Encodable, Decodable {
     var profileImageUrl: String?
     let createdAt: String?
     let playerLevel: String?
+    let credits: Int
     
     // Custom initializer for backward compatibility
-    init(id: String, name: String?, profileImageUrl: String? = nil, createdAt: String? = nil, playerLevel: String? = nil) {
+    init(id: String, name: String?, profileImageUrl: String? = nil, createdAt: String? = nil, playerLevel: String? = nil, credits: Int = 0) {
         self.id = id
         self.name = name
         self.profileImageUrl = profileImageUrl
         self.createdAt = createdAt
         self.playerLevel = playerLevel
+        self.credits = credits
     }
     
     private enum CodingKeys: String, CodingKey {
-        case id, name
+        case id, name, credits
         case profileImageUrl = "profile_image_url"
         case createdAt = "created_at"
         case playerLevel = "player_level"
@@ -189,5 +191,14 @@ struct User: Identifiable, Encodable, Decodable {
             // Fallback for any unrecognized level names
             return .ideaSpark
         }
+    }
+    
+    // MARK: - Credit Properties
+    var creditsCount: Int {
+        return credits
+    }
+    
+    var hasLowCredits: Bool {
+        return creditsCount < 5
     }
 }

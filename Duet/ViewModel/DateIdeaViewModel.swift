@@ -19,6 +19,7 @@ class DateIdeaViewModel: ObservableObject {
     private var toast: ToastManager
     private weak var activityVM: ActivityHistoryViewModel?
     private var processingManager: ProcessingManager?
+    private let creditService = CreditService.shared
     
     init(toast: ToastManager, activityHistoryVM: ActivityHistoryViewModel? = nil, videoUrl: String = "", urlText: String = "") {
         self.toast = toast
@@ -87,6 +88,12 @@ class DateIdeaViewModel: ObservableObject {
             return
         }
         
+        // Pre-emptive credit check with UI handling
+        if !creditService.checkCreditsForAction(creditsRequired: 1) {
+            toast.error("Not enough credits to process video")
+            return
+        }
+        
         // Format URL if needed
         let formattedUrl = formatUrl(trimmed)
         
@@ -97,11 +104,16 @@ class DateIdeaViewModel: ObservableObject {
             do {
                 let response = try await processingManager?.processVideo(url: formattedUrl)
                 await MainActor.run {
+                    // Optimistically deduct credits since the request succeeded
+                    creditService.deductCredits(1)
                     toast.success(response?.message ?? "Video processing started")
                 }
             } catch {
                 await MainActor.run {
-                    if let processingError = error as? ProcessingError {
+                    // Check if this is a credit error
+                    if creditService.handleInsufficientCreditsError(error) {
+                        toast.error("Not enough credits to process video")
+                    } else if let processingError = error as? ProcessingError {
                         toast.error(processingError.localizedDescription)
                     } else {
                         toast.error("Failed to start video processing")
