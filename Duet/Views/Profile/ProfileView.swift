@@ -15,6 +15,8 @@ struct ProfileView: View {
     @EnvironmentObject private var toast: ToastManager
     @EnvironmentObject private var creditUIManager: CreditUIManager
     @EnvironmentObject private var myLibraryVM: MyLibraryViewModel
+    @EnvironmentObject private var subscriptionService: SubscriptionService
+
     @StateObject private var vm = ProfileViewModel()
     @StateObject private var creditService = CreditService.shared
     @State private var quickPurchasePackage: CreditPackage?
@@ -39,7 +41,7 @@ struct ProfileView: View {
         print("🎯 Level Calculation - Ideas: \(myLibraryVM.totalUserIdeas), Calculated: \(level.title), Backend: \(backendLevel.title)")
         return level
     }
-
+    
     var body: some View {
         ZStack {
             ScrollView(.vertical, showsIndicators: false) {
@@ -71,6 +73,29 @@ struct ProfileView: View {
                     .padding()
                 }
                 .padding(.horizontal)
+
+                // MARK: — Pro Member Section (if subscribed) or My Library Section
+                if subscriptionService.hasActiveSubscription() {
+                    proMemberSection
+                    myLibrarySection
+                } else {
+                    myLibrarySection
+                    upgradeToProSection
+                }
+
+                // Note: Credit transactions section removed from UI
+                // Credit system code is kept for future use
+
+                Spacer(minLength: 200)
+
+                // MARK: — Actions
+                Button(role: .destructive) {
+                    authVM.signOut()
+                } label: {
+                    Label("Sign Out", systemImage: "arrow.backward.circle")
+                        .font(.headline)
+                }
+                .padding()
             }
 
             // Hidden NavigationLink for programmatic navigation
@@ -116,9 +141,9 @@ struct ProfileView: View {
                 }
             }
             
-            // Fetch quick purchase package for "Buy More" button
+            // Refresh subscription status
             Task {
-                await fetchQuickPurchasePackage()
+                await subscriptionService.refreshSubscriptionStatus()
             }
             
             // Force refresh current user data to ensure we have latest player_level
@@ -225,8 +250,8 @@ struct ProfileView: View {
                             .foregroundColor(.secondary)
                         
                         HStack(spacing: 8) {
-                            // Credits Badge
-                            CreditBadge()
+                            // Simple Pro Badge
+                            SimpleProBadge()
                             
                             // Player Level Pill - flexible to avoid wrapping, now tappable
                             Button(action: {
@@ -245,16 +270,20 @@ struct ProfileView: View {
                             .font(.caption).monospaced()
                             .foregroundColor(.secondary)
                         
-                        // Default level pill, also tappable
-                        Button(action: {
-                            HapticFeedbacks.soft()
-                            showPlayerLevelRoadmap = true
-                        }) {
-                            PlayerLevelPill(level: calculatedPlayerLevel)
-                                .lineLimit(1)
-                                .minimumScaleFactor(0.7)
+                        // Default badges
+                        HStack(spacing: 8) {
+                            SimpleProBadge()
+                            
+                            Button(action: {
+                                HapticFeedbacks.soft()
+                                showPlayerLevelRoadmap = true
+                            }) {
+                                PlayerLevelPill(level: calculatedPlayerLevel)
+                                    .lineLimit(1)
+                                    .minimumScaleFactor(0.7)
+                            }
+                            .buttonStyle(.plain)
                         }
-                        .buttonStyle(.plain)
                     }
                 }
                 
@@ -265,6 +294,18 @@ struct ProfileView: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 16)
         .padding(.trailing, 10) // Ensure 10pt padding from trailing edge
+    }
+    
+    // MARK: - Pro Member Section
+    @ViewBuilder
+    private var proMemberSection: some View {
+        SimpleProMemberCard()
+    }
+    
+    // MARK: - Upgrade to Pro Section
+    @ViewBuilder
+    private var upgradeToProSection: some View {
+        SimpleProMemberCard()
     }
     
     // MARK: - My Library Section

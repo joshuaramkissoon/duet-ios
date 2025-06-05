@@ -21,7 +21,7 @@ struct URLInputView: View {
               .clipShape(
                 RoundedRectangle(cornerRadius: 36, style: .continuous)
               )
-              .padding(.horizontal, 40)
+              .padding(.horizontal, 10)
               .padding(.top, 20)
 
             

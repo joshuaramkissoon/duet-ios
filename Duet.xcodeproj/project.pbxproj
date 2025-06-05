@@ -15,6 +15,8 @@
 		7235080A2DDBEBDD0024815C /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = 723508092DDBEBDD0024815C /* FirebaseAuth */; };
 		7235080D2DDBECEF0024815C /* GoogleSignIn in Frameworks */ = {isa = PBXBuildFile; productRef = 7235080C2DDBECEF0024815C /* GoogleSignIn */; };
 		7235080F2DDBECEF0024815C /* GoogleSignInSwift in Frameworks */ = {isa = PBXBuildFile; productRef = 7235080E2DDBECEF0024815C /* GoogleSignInSwift */; };
+		72CF7E4E2DEDC65D00B3C5C7 /* RevenueCat in Frameworks */ = {isa = PBXBuildFile; productRef = 72CF7E4D2DEDC65D00B3C5C7 /* RevenueCat */; };
+		72CF7E502DEDC65D00B3C5C7 /* RevenueCatUI in Frameworks */ = {isa = PBXBuildFile; productRef = 72CF7E4F2DEDC65D00B3C5C7 /* RevenueCatUI */; };
 		72F186AE2DDC7024003B2C4F /* FirebaseDynamicLinks in Frameworks */ = {isa = PBXBuildFile; productRef = 72F186AD2DDC7024003B2C4F /* FirebaseDynamicLinks */; };
 		72F186B02DDC7024003B2C4F /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = 72F186AF2DDC7024003B2C4F /* FirebaseFirestore */; };
 /* End PBXBuildFile section */
@@ -140,6 +142,8 @@
 				723508082DDBEBDD0024815C /* FirebaseAnalytics in Frameworks */,
 				7235080D2DDBECEF0024815C /* GoogleSignIn in Frameworks */,
 				7235080A2DDBEBDD0024815C /* FirebaseAuth in Frameworks */,
+				72CF7E4E2DEDC65D00B3C5C7 /* RevenueCat in Frameworks */,
+				72CF7E502DEDC65D00B3C5C7 /* RevenueCatUI in Frameworks */,
 				723507F52DD97CF80024815C /* Lottie in Frameworks */,
 				72F186AE2DDC7024003B2C4F /* FirebaseDynamicLinks in Frameworks */,
 				72F186B02DDC7024003B2C4F /* FirebaseFirestore in Frameworks */,
@@ -249,6 +253,8 @@
 				7235080E2DDBECEF0024815C /* GoogleSignInSwift */,
 				72F186AD2DDC7024003B2C4F /* FirebaseDynamicLinks */,
 				72F186AF2DDC7024003B2C4F /* FirebaseFirestore */,
+				72CF7E4D2DEDC65D00B3C5C7 /* RevenueCat */,
+				72CF7E4F2DEDC65D00B3C5C7 /* RevenueCatUI */,
 			);
 			productName = Duet;
 			productReference = 723507A22DD81E350024815C /* Duet.app */;
@@ -339,6 +345,7 @@
 				723507F32DD97C810024815C /* XCRemoteSwiftPackageReference "lottie-spm" */,
 				723508062DDBEBDD0024815C /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */,
 				7235080B2DDBECEF0024815C /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */,
+				72CF7E4C2DEDC65D00B3C5C7 /* XCRemoteSwiftPackageReference "purchases-ios-spm" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 723507A32DD81E350024815C /* Products */;
@@ -436,6 +443,8 @@
 /* Begin XCBuildConfiguration section */
 		7200B4592DE15B15005F1DF4 /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReferenceAnchor = 723507A42DD81E350024815C /* Duet */;
+			baseConfigurationReferenceRelativePath = Config.xcconfig;
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = DuetExtension/DuetExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
@@ -464,6 +473,8 @@
 		};
 		7200B45A2DE15B15005F1DF4 /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReferenceAnchor = 723507A42DD81E350024815C /* Duet */;
+			baseConfigurationReferenceRelativePath = Config.xcconfig;
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = DuetExtension/DuetExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
@@ -493,6 +504,8 @@
 		};
 		723507C22DD81E370024815C /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReferenceAnchor = 723507A42DD81E350024815C /* Duet */;
+			baseConfigurationReferenceRelativePath = Config.xcconfig;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
@@ -554,6 +567,8 @@
 		};
 		723507C32DD81E370024815C /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReferenceAnchor = 723507A42DD81E350024815C /* Duet */;
+			baseConfigurationReferenceRelativePath = Config.xcconfig;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
@@ -607,6 +622,8 @@
 		};
 		723507C52DD81E370024815C /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReferenceAnchor = 723507A42DD81E350024815C /* Duet */;
+			baseConfigurationReferenceRelativePath = Config.xcconfig;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
@@ -634,6 +651,7 @@
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 15.3;
 				MARKETING_VERSION = 1.0;
+				NEW_SETTING = "";
 				PRODUCT_BUNDLE_IDENTIFIER = jram.Duet.Duet;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
@@ -649,6 +667,8 @@
 		};
 		723507C62DD81E370024815C /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReferenceAnchor = 723507A42DD81E350024815C /* Duet */;
+			baseConfigurationReferenceRelativePath = Config.xcconfig;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
@@ -676,6 +696,7 @@
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 15.3;
 				MARKETING_VERSION = 1.0;
+				NEW_SETTING = "";
 				PRODUCT_BUNDLE_IDENTIFIER = jram.Duet.Duet;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
@@ -850,6 +871,14 @@
 				minimumVersion = 8.0.0;
 			};
 		};
+		72CF7E4C2DEDC65D00B3C5C7 /* XCRemoteSwiftPackageReference "purchases-ios-spm" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/RevenueCat/purchases-ios-spm.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 5.25.3;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -887,6 +916,16 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 7235080B2DDBECEF0024815C /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */;
 			productName = GoogleSignInSwift;
+		};
+		72CF7E4D2DEDC65D00B3C5C7 /* RevenueCat */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 72CF7E4C2DEDC65D00B3C5C7 /* XCRemoteSwiftPackageReference "purchases-ios-spm" */;
+			productName = RevenueCat;
+		};
+		72CF7E4F2DEDC65D00B3C5C7 /* RevenueCatUI */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 72CF7E4C2DEDC65D00B3C5C7 /* XCRemoteSwiftPackageReference "purchases-ios-spm" */;
+			productName = RevenueCatUI;
 		};
 		72F186AD2DDC7024003B2C4F /* FirebaseDynamicLinks */ = {
 			isa = XCSwiftPackageProductDependency;

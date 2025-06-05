@@ -38,11 +38,25 @@ class AuthenticationViewModel: ObservableObject {
                 self.fetchCurrentUserInfo(for: user)
                 // Store/refresh the Firebase ID token
                 self.refreshAndStoreAuthToken()
+                
+                // Configure RevenueCat with user ID
+                Task {
+                    await SubscriptionService.shared.login(userId: user.uid)
+                    // Refresh subscription status immediately after login
+                    await SubscriptionService.shared.refreshSubscriptionStatus()
+                    print("🟢 RevenueCat user logged in: \(user.uid)")
+                }
             }
             else {
                 SharedUserManager.shared.clearCurrentUser()
                 self.currentUser = nil
                 UserCache.shared.cleanupExpired()
+                
+                // Clear RevenueCat user
+                Task {
+                    await SubscriptionService.shared.logout()
+                    print("🟢 RevenueCat user logged out")
+                }
             }
             self.state = (user == nil ? .unauthenticated : .authenticated)
         }

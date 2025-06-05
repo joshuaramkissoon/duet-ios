@@ -30,10 +30,13 @@ struct DuetApp: App {
     
     // Scene phase for app state detection
     @Environment(\.scenePhase) private var scenePhase
+    @StateObject private var subscriptionService = SubscriptionService.shared
+    @StateObject private var subscriptionViewModel = SubscriptionViewModel()
 
     init() {
         FirebaseApp.configure()
         configureAudioSession()
+        configureRevenueCat()
         
         // Clear user cache on app startup to ensure fresh data (especially profile images)
         UserCache.shared.clearCacheOnAppStartup()
@@ -64,6 +67,15 @@ struct DuetApp: App {
         }
     }
     
+    private func configureRevenueCat() {
+        guard let apiKey = Bundle.main.object(forInfoDictionaryKey: "RevenueCatAPIKey") as? String else {
+            fatalError("RevenueCat API key not found in Info.plist")
+        }
+        
+        SubscriptionService.shared.configure(apiKey: apiKey)
+        print("🟢 RevenueCat configured in DuetApp")
+    }
+    
     private func configureAudioSession() {
         do {
             try AVAudioSession.sharedInstance().setCategory(.playback, mode: .default)
@@ -88,6 +100,8 @@ struct DuetApp: App {
                     .environmentObject(myLibraryVM)
                     .environmentObject(notificationManager)
                     .environmentObject(navigationManager)
+                    .environmentObject(subscriptionService)
+                    .environmentObject(subscriptionViewModel)
                     .onOpenURL(perform: handleInviteURL(_:))
                     .onAppear {
                         // Configure ProcessingManager with proper references
@@ -127,6 +141,14 @@ struct DuetApp: App {
                     }
                     .onChange(of: scenePhase) { newPhase in
                         handleScenePhaseChange(newPhase)
+                    }
+                    .sheet(isPresented: $subscriptionService.showPaywall) {
+                        SubscriptionPaywallView()
+                            .environmentObject(toastManager)
+                            .environmentObject(subscriptionViewModel)
+                            .onDisappear {
+                                subscriptionService.dismissPaywall()
+                            }
                     }
                 
                 if let result = groupsVM.joinResult {

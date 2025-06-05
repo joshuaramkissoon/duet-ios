@@ -20,6 +20,7 @@ class ProcessingManager: ObservableObject {
     private weak var myLibraryVM: MyLibraryViewModel?
     private let creditService = CreditService.shared
     private let notificationManager = NotificationManager.shared
+    private let subscriptionService = SubscriptionService.shared
     
     init(toast: ToastManager, activityVM: ActivityHistoryViewModel? = nil) {
         self.toast = toast
@@ -209,9 +210,9 @@ class ProcessingManager: ObservableObject {
             throw ProcessingError.userNotAuthenticated
         }
         
-        // Pre-emptive credit check with UI handling
-        if !creditService.checkCreditsForAction(creditsRequired: 1) {
-            throw ProcessingError.insufficientCredits
+        // Check subscription access and show paywall if needed
+        if subscriptionService.requiresSubscriptionWithPaywall() {
+            throw ProcessingError.subscriptionRequired
         }
         
         // Read default visibility setting from UserDefaults
@@ -222,16 +223,9 @@ class ProcessingManager: ObservableObject {
         
         do {
             let response: ProcessingResponse = try await NetworkClient.shared.postJSON(url: endpoint, body: body)
-            // Optimistically deduct credits on successful request
-            await MainActor.run {
-                creditService.deductCredits(1)
-            }
+            // No credit deduction needed - subscription covers everything
             return response
         } catch {
-            // Handle credit errors
-            if creditService.handleInsufficientCreditsError(error) {
-                throw ProcessingError.insufficientCredits
-            }
             throw error
         }
     }
@@ -241,9 +235,9 @@ class ProcessingManager: ObservableObject {
             throw ProcessingError.userNotAuthenticated
         }
         
-        // Pre-emptive credit check with UI handling
-        if !creditService.checkCreditsForAction(creditsRequired: 1) {
-            throw ProcessingError.insufficientCredits
+        // Check subscription access and show paywall if needed
+        if subscriptionService.requiresSubscriptionWithPaywall() {
+            throw ProcessingError.subscriptionRequired
         }
         
         // For group ideas, always default to false (private) since groups are not public for now
@@ -254,16 +248,9 @@ class ProcessingManager: ObservableObject {
         
         do {
             let response: ProcessingResponse = try await NetworkClient.shared.postJSON(url: endpoint, body: body)
-            // Optimistically deduct credits on successful request
-            await MainActor.run {
-                creditService.deductCredits(1)
-            }
+            // No credit deduction needed - subscription covers everything
             return response
         } catch {
-            // Handle credit errors
-            if creditService.handleInsufficientCreditsError(error) {
-                throw ProcessingError.insufficientCredits
-            }
             throw error
         }
     }
@@ -483,7 +470,8 @@ enum ProcessingError: LocalizedError {
     case userNotAuthenticated
     case invalidURL
     case networkError(String)
-    case insufficientCredits
+    case insufficientCredits // Keep for future use
+    case subscriptionRequired
     
     var errorDescription: String? {
         switch self {
@@ -495,6 +483,8 @@ enum ProcessingError: LocalizedError {
             return message
         case .insufficientCredits:
             return "Not enough credits to process video"
+        case .subscriptionRequired:
+            return "Duet Pro subscription required"
         }
     }
 } 
