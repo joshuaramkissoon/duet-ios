@@ -8,7 +8,7 @@ class ShareHostingController: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         
-        // Ensure Firebase configured for Firestore usage
+        // Configure Firebase for getting fresh auth tokens
         if FirebaseApp.app() == nil {
             FirebaseApp.configure()
         }

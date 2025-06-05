@@ -14,45 +14,89 @@ struct ProfileView: View {
     @EnvironmentObject private var authVM: AuthenticationViewModel
     @EnvironmentObject private var toast: ToastManager
     @EnvironmentObject private var creditUIManager: CreditUIManager
+    @EnvironmentObject private var myLibraryVM: MyLibraryViewModel
     @StateObject private var vm = ProfileViewModel()
-    @StateObject private var libraryVM = MyLibraryViewModel()
     @StateObject private var creditService = CreditService.shared
     @State private var quickPurchasePackage: CreditPackage?
     @State private var currency: String = "gbp"
+    @State private var showPlayerLevelRoadmap = false
+    
+    // MARK: - Name Editing State
+    @State private var isEditingName = false
+    @State private var editingName = ""
+    @State private var isUpdatingName = false
+    @FocusState private var isNameFieldFocused: Bool
+    
+    // MARK: - Navigation State
+    @State private var navigateToMyLibrary = false
+    
+    // MARK: - Computed Properties
+    
+    /// Calculate the current player level based on actual idea count (more reliable than backend level)
+    private var calculatedPlayerLevel: PlayerLevel {
+        let level = PlayerLevel(ideaCount: myLibraryVM.totalUserIdeas)
+        let backendLevel = authVM.currentUser?.playerLevelInfo ?? .ideaSpark
+        print("🎯 Level Calculation - Ideas: \(myLibraryVM.totalUserIdeas), Calculated: \(level.title), Backend: \(backendLevel.title)")
+        return level
+    }
 
     var body: some View {
-        ScrollView(.vertical, showsIndicators: false) {
-            VStack(spacing: 24) {
-                // MARK: — Profile Header Section
-                if let user = authVM.user {
-                    profileHeaderSection(user: user)
-                        .padding(.top, 20)
+        ZStack {
+            ScrollView(.vertical, showsIndicators: false) {
+                VStack(spacing: 24) {
+                    // MARK: — Profile Header Section
+                    if let user = authVM.user {
+                        profileHeaderSection(user: user)
+                            .padding(.top, 20)
+                    }
+
+                    // MARK: — My Library Section
+                    myLibrarySection
+
+                    // MARK: — Settings Section
+                    settingsSection
+
+                    // MARK: — Recent Transactions Section
+                    recentTransactionsSection
+
+                    Spacer(minLength: 200)
+
+                    // MARK: — Actions
+                    Button(role: .destructive) {
+                        authVM.signOut()
+                    } label: {
+                        Label("Sign Out", systemImage: "arrow.backward.circle")
+                            .font(.headline)
+                    }
+                    .padding()
                 }
-
-                // MARK: — My Library Section
-                myLibrarySection
-
-                // MARK: — Recent Transactions Section
-                recentTransactionsSection
-
-                Spacer(minLength: 200)
-
-                // MARK: — Actions
-                Button(role: .destructive) {
-                    authVM.signOut()
-                } label: {
-                    Label("Sign Out", systemImage: "arrow.backward.circle")
-                        .font(.headline)
-                }
-                .padding()
+                .padding(.horizontal)
             }
-            .padding(.horizontal)
+
+            // Hidden NavigationLink for programmatic navigation
+            NavigationLink(destination: MyLibraryView(viewModel: myLibraryVM), isActive: $navigateToMyLibrary) {
+                EmptyView()
+            }
+            .hidden()
         }
+        .scrollDismissesKeyboard(.interactively)
         .navigationTitle("")
         .navigationBarHidden(true)
         .sheet(isPresented: $vm.isSharing) {
             if let image = vm.qrImage {
                 ActivityView(activityItems: [image])
+            }
+        }
+        .sheet(isPresented: $showPlayerLevelRoadmap) {
+            PlayerLevelRoadmapView(
+                currentLevel: calculatedPlayerLevel,
+                totalUserIdeas: myLibraryVM.totalUserIdeas
+            )
+            .onAppear {
+                // Force refresh user data when roadmap appears to ensure latest level
+                authVM.forceRefreshCurrentUser()
+                // Also refresh library count to ensure accuracy
+                myLibraryVM.refreshTotalCount()
             }
         }
         .withAppBackground()
@@ -64,15 +108,22 @@ struct ProfileView: View {
             vm.authViewModel = authVM
             vm.toastManager = toast
             
-            // Background load user's library for faster access
+            // Ensure MyLibraryViewModel is properly initialized for current user
             if let userId = authVM.user?.uid {
-                libraryVM.setAuthorId(userId)
-                libraryVM.backgroundLoadUserIdeas()
+                if myLibraryVM.totalUserIdeas == 0 { // Only load if not already loaded
+                    myLibraryVM.setAuthorId(userId)
+                    myLibraryVM.backgroundLoadUserIdeas()
+                }
             }
             
             // Fetch quick purchase package for "Buy More" button
             Task {
                 await fetchQuickPurchasePackage()
+            }
+            
+            // Force refresh current user data to ensure we have latest player_level
+            if authVM.state == .authenticated {
+                authVM.forceRefreshCurrentUser()
             }
             
             // Note: We rely on CreditService.shared local cache instead of fetching every time
@@ -98,11 +149,72 @@ struct ProfileView: View {
             
             // Right: User Info
             VStack(alignment: .leading, spacing: 3) {
-                // User Display Name
-                Text(user.displayName ?? "Guest User")
-                    .font(.title3)
-                    .fontWeight(.semibold)
-                    .foregroundColor(.primary)
+                // User Display Name - Inline Editable
+                HStack {
+                    if isEditingName {
+                        // Editing State
+                        HStack {
+                            TextField("Enter name", text: $editingName)
+                                .font(.title3)
+                                .fontWeight(.semibold)
+                                .foregroundColor(.primary)
+                                .textFieldStyle(.plain)
+                                .submitLabel(.done)
+                                .disabled(isUpdatingName)
+                                .focused($isNameFieldFocused)
+                                .onSubmit {
+                                    saveNameEdit()
+                                }
+                            
+                            // Save/Cancel buttons
+                            HStack(spacing: 4) {
+                                // Cancel button
+                                Button {
+                                    cancelNameEdit()
+                                } label: {
+                                    Image(systemName: "xmark.circle.fill")
+                                        .font(.title3)
+                                        .foregroundColor(.secondary)
+                                }
+                                .disabled(isUpdatingName)
+                                .buttonStyle(.plain)
+                                
+                                // Save button
+                                Button {
+                                    saveNameEdit()
+                                } label: {
+                                    if isUpdatingName {
+                                        ProgressView()
+                                            .scaleEffect(0.8)
+                                    } else {
+                                        Image(systemName: "checkmark.circle.fill")
+                                            .font(.title3)
+                                            .foregroundColor(.appPrimary)
+                                    }
+                                }
+                                .disabled(editingName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isUpdatingName)
+                                .buttonStyle(.plain)
+                            }
+                        }
+                    } else {
+                        // Display State
+                        Button {
+                            startNameEdit(currentName: authVM.currentUser?.displayName ?? user.displayName ?? "")
+                        } label: {
+                            HStack {
+                                Text(authVM.currentUser?.displayName ?? user.displayName ?? "Guest User")
+                                    .font(.title3)
+                                    .fontWeight(.semibold)
+                                    .foregroundColor(.primary)
+                                
+                                Image(systemName: "pencil.circle")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary.opacity(0.6))
+                            }
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
                 
                 // Stats Section
                 VStack(alignment: .leading, spacing: 8) {
@@ -116,10 +228,16 @@ struct ProfileView: View {
                             // Credits Badge
                             CreditBadge()
                             
-                            // Player Level Pill - flexible to avoid wrapping
-                            PlayerLevelPill(level: currentUser.playerLevelInfo)
-                                .lineLimit(1)
-                                .minimumScaleFactor(0.7)
+                            // Player Level Pill - flexible to avoid wrapping, now tappable
+                            Button(action: {
+                                HapticFeedbacks.soft()
+                                showPlayerLevelRoadmap = true
+                            }) {
+                                PlayerLevelPill(level: calculatedPlayerLevel)
+                                    .lineLimit(1)
+                                    .minimumScaleFactor(0.7)
+                            }
+                            .buttonStyle(.plain)
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                     } else {
@@ -127,10 +245,16 @@ struct ProfileView: View {
                             .font(.caption).monospaced()
                             .foregroundColor(.secondary)
                         
-                        // Default level pill
-                        PlayerLevelPill(level: .ideaSpark)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.7)
+                        // Default level pill, also tappable
+                        Button(action: {
+                            HapticFeedbacks.soft()
+                            showPlayerLevelRoadmap = true
+                        }) {
+                            PlayerLevelPill(level: calculatedPlayerLevel)
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.7)
+                        }
+                        .buttonStyle(.plain)
                     }
                 }
                 
@@ -146,7 +270,9 @@ struct ProfileView: View {
     // MARK: - My Library Section
     @ViewBuilder
     private var myLibrarySection: some View {
-        NavigationLink(destination: MyLibraryView(viewModel: libraryVM)) {
+        Button(action: {
+            navigateToMyLibrary = true
+        }) {
             HStack(spacing: 16) {
                 // Icon
                 Image(systemName: "folder")
@@ -156,12 +282,61 @@ struct ProfileView: View {
                 
                 // Content
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("My Library")
+                    Text(libraryTitle)
                         .font(.headline)
                         .fontWeight(.semibold)
                         .foregroundColor(.primary)
                     
                     Text("Browse all your ideas")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
+                
+                Spacer()
+                
+                // Chevron
+                Image(systemName: "chevron.right")
+                    .font(.caption)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.secondary)
+            }
+            .padding()
+            .background(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(Color(.systemBackground))
+                    .shadow(color: Color.black.opacity(0.05), radius: 6, x: 0, y: 2)
+            )
+        }
+        .buttonStyle(.plain)
+    }
+    
+    private var libraryTitle: String {
+        if myLibraryVM.totalUserIdeas > 0 {
+            return "My Library (\(myLibraryVM.totalUserIdeas))"
+        } else {
+            return "My Library"
+        }
+    }
+    
+    // MARK: - Settings Section
+    @ViewBuilder
+    private var settingsSection: some View {
+        NavigationLink(destination: SettingsView()) {
+            HStack(spacing: 16) {
+                // Icon
+                Image(systemName: "gearshape")
+                    .font(.title2)
+                    .foregroundColor(.appPrimary)
+                    .frame(width: 32, height: 32)
+                
+                // Content
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Settings")
+                        .font(.headline)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.primary)
+                    
+                    Text("Manage your preferences")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                 }
@@ -333,8 +508,8 @@ struct ProfileView: View {
                             .frame(width: 80, height: 80)
                             .clipShape(Circle())
                     case .failure:
-                        // Fallback to initials
-                        ProfileImage(user: User(id: user.uid, name: user.displayName), diam: 80)
+                        // Fallback to initials using backend user data
+                        ProfileImage(user: User(id: user.uid, name: authVM.currentUser?.name ?? user.displayName), diam: 80)
                     @unknown default:
                         EmptyView()
                     }
@@ -342,7 +517,7 @@ struct ProfileView: View {
             }
             // Lowest priority: Initials fallback
             else {
-                ProfileImage(user: User(id: user.uid, name: user.displayName), diam: 80)
+                ProfileImage(user: User(id: user.uid, name: authVM.currentUser?.name ?? user.displayName), diam: 80)
             }
             
             // Camera icon overlay to indicate tappability
@@ -378,13 +553,13 @@ struct ProfileView: View {
                         .frame(width: 80, height: 80)
                         .clipShape(Circle())
                 case .failure:
-                    ProfileImage(user: User(id: user.uid, name: user.displayName), diam: 80)
+                    ProfileImage(user: User(id: user.uid, name: authVM.currentUser?.name ?? user.displayName), diam: 80)
                 @unknown default:
                     EmptyView()
                 }
             }
         } else {
-            ProfileImage(user: User(id: user.uid, name: user.displayName), diam: 80)
+            ProfileImage(user: User(id: user.uid, name: authVM.currentUser?.name ?? user.displayName), diam: 80)
         }
     }
     
@@ -433,6 +608,71 @@ struct ProfileView: View {
                     
                 case .failure(let error):
                     toast.error("Payment failed: \(error.localizedDescription)")
+                }
+            }
+        }
+    }
+    
+    // MARK: - Name Editing Methods
+    
+    private func startNameEdit(currentName: String) {
+        editingName = currentName == "Guest User" ? "" : currentName
+        isEditingName = true
+        isNameFieldFocused = true
+        HapticFeedbacks.soft()
+    }
+    
+    private func cancelNameEdit() {
+        editingName = ""
+        isEditingName = false
+        isNameFieldFocused = false
+        HapticFeedbacks.soft()
+    }
+    
+    private func saveNameEdit() {
+        let trimmedName = editingName.trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        guard !trimmedName.isEmpty else {
+            toast.error("Name cannot be empty")
+            return
+        }
+        
+        // Don't save if name hasn't changed - use the correct current name
+        let currentName = authVM.currentUser?.displayName ?? authVM.user?.displayName ?? ""
+        if trimmedName == currentName {
+            cancelNameEdit()
+            return
+        }
+        
+        isUpdatingName = true
+        isNameFieldFocused = false
+        HapticFeedbacks.soft()
+        
+        NetworkClient.shared.updateUser(name: trimmedName) { result in
+            DispatchQueue.main.async {
+                self.isUpdatingName = false
+                
+                switch result {
+                case .success(let updatedUser):
+                    // Update the authentication view model with the new user data
+                    self.authVM.updateCurrentUser(updatedUser)
+                    
+                    // Reset editing state
+                    self.isEditingName = false
+                    self.editingName = ""
+                    
+                    // Show success toast
+                    self.toast.success("Name updated")
+                    
+                    // Haptic feedback for success
+                    HapticFeedbacks.success()
+                    
+                case .failure(let error):
+                    // Show error toast
+                    self.toast.error("Failed to update name")
+                    
+                    // Haptic feedback for error
+                    HapticFeedbacks.error()
                 }
             }
         }

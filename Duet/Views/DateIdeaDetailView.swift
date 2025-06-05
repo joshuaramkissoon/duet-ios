@@ -13,12 +13,16 @@ struct DateIdeaDetailView: View {
     let dateIdea: DateIdeaResponse
     var groupId: String? = nil
     var scrollToComments: Bool = false
+    var hideNavigationBar: Bool = false
     
     @EnvironmentObject private var toastManager: ToastManager
     @EnvironmentObject private var authVM: AuthenticationViewModel
     @Environment(\.openURL) private var openURL
     @ObservedObject var viewModel: DateIdeaViewModel
     @State private var showShareSheet = false
+    @State private var isOptionsExpanded = false
+    @State private var authorUser: User?
+    @State private var isLoadingAuthor = false
     
     private var sectionTitle: String {
         switch currentDateIdeaResponse.summary.content_type {
@@ -51,7 +55,16 @@ struct DateIdeaDetailView: View {
     var body: some View {
         ScrollViewReader { proxy in
             ScrollView {
-                VStack(alignment: .leading, spacing: 24) {
+                VStack(alignment: .leading, spacing: 16) {
+                    // Author section (when current user is not the owner)
+                    if let userId = currentDateIdeaResponse.user_id,
+                       let currentUserId = authVM.user?.uid,
+                       userId != currentUserId {
+                        authorSection
+                            .padding(.top)
+                            .padding(.horizontal)
+                    }
+                    
                     if !viewModel.videoUrl.isEmpty, let url = URL(string: viewModel.videoUrl) {
                         HStack {
                             Spacer()
@@ -86,6 +99,22 @@ struct DateIdeaDetailView: View {
                             .padding(.top, -8)
                         }
                     }
+                    
+                    // Operational Controls Section (always shown, adapts based on permissions)
+                    OperationalControlsSection(
+                        isExpanded: $isOptionsExpanded,
+                        dateIdea: currentDateIdeaResponse,
+                        groupId: groupId,
+                        canEdit: canEdit,
+                        viewModel: viewModel,
+                        onShareToGroup: {
+                            showShareSheet = true
+                        },
+                        onImproveWithAI: {
+                            // TODO: Implement AI chat functionality
+                        }
+                    )
+                    .padding(.horizontal)
                     
                     // Title and basic info
                     VStack(alignment: .leading, spacing: 16) {
@@ -219,28 +248,10 @@ struct DateIdeaDetailView: View {
                             }
                         }
                         
-                        // Share to group
-                        Button(action: {
-                            showShareSheet = true
-                        }) {
-                            HStack(alignment: .center, spacing: 8) {
-                                Image(systemName: "person.3.fill")
-                                    .font(.system(size: 20))
-                                    .foregroundColor(.appPrimary)
-                                Text("Share to Group")
-                                    .font(.subheadline)
-                                    .fontWeight(.medium)
-                                    .foregroundColor(.appPrimary)
-                            }
-                            .frame(maxWidth: .infinity)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 12)
-                            .background(Color.appPrimaryLightBackground)
-                            .cornerRadius(12)
-                        }
-                        .buttonStyle(PlainButtonStyle())
-                        .padding(.vertical, 8)
-                        .padding(.horizontal)
+                        // Reactions Card
+                        IdeaReactionsCard(ideaId: currentDateIdeaResponse.id, groupId: groupId)
+                            .padding(.horizontal)
+                            .padding(.vertical, 8)
 
                         // Comments Section
                         CommentSection(ideaId: currentDateIdeaResponse.id, groupId: groupId)
@@ -258,6 +269,9 @@ struct DateIdeaDetailView: View {
                 // Fetch latest data from backend in the background
                 viewModel.fetchLatestActivityData(for: dateIdea.id)
                 
+                // Fetch author user data if needed
+                fetchAuthorUserIfNeeded()
+                
                 if scrollToComments {
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                         withAnimation(.easeInOut(duration: 0.3)) {
@@ -266,15 +280,18 @@ struct DateIdeaDetailView: View {
                     }
                 }
             }
+            .onReceive(NotificationCenter.default.publisher(for: .userProfileUpdated)) { notification in
+                // If the updated user is the author of this idea, update local state
+                if let updatedUser = notification.userInfo?["updatedUser"] as? User,
+                   let authorId = currentDateIdeaResponse.user_id,
+                   updatedUser.id == authorId {
+                    authorUser = updatedUser
+                    print("🔄 Updated author user for idea \(currentDateIdeaResponse.id) with new profile data")
+                }
+            }
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Menu {
-                        Button {
-                            showShareSheet = true
-                        } label: {
-                            Label("Share to Group", systemImage: "person.3.fill")
-                        }
-                        
                         if let src = currentDateIdeaResponse.original_source_url,
                            let url = URL(string: src) {
                             Button {
@@ -300,10 +317,8 @@ struct DateIdeaDetailView: View {
             .sheet(isPresented: $showShareSheet) {
                 ShareToGroupView(idea: currentDateIdeaResponse, isPresented: $showShareSheet, toastManager: toastManager)
             }
+            .navigationBarHidden(hideNavigationBar)
             .withAppBackground()
-        }
-        .onAppear {
-            print("Date idea: \(dateIdea)")
         }
     }
     
@@ -327,6 +342,79 @@ struct DateIdeaDetailView: View {
     /// Returns the current required items, prioritizing updated data from view model
     private var currentRequiredItems: [String] {
         return viewModel.dateIdeaResponse?.summary.required_items ?? dateIdea.summary.required_items
+    }
+    
+    // MARK: - Author Section
+    
+    @ViewBuilder
+    private var authorSection: some View {
+        HStack(spacing: 12) {
+            // Author avatar - show loading or user image
+            if isLoadingAuthor {
+                // Show placeholder while loading
+                Circle()
+                    .fill(Color.gray.opacity(0.2))
+                    .frame(width: 40, height: 40)
+            } else {
+                let user = authorUser ?? User(id: currentDateIdeaResponse.user_id ?? "", name: currentDateIdeaResponse.user_name ?? "Unknown")
+                ProfileImage(user: user, diam: 40)
+            }
+            
+            VStack(alignment: .leading, spacing: 2) {
+                Text(authorUser?.displayName ?? currentDateIdeaResponse.user_name ?? "Unknown")
+                    .font(.headline)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.primary)
+                
+                if let createdAtTimestamp = currentDateIdeaResponse.created_at {
+                    let createdAtDate = Date(timeIntervalSince1970: TimeInterval(createdAtTimestamp))
+                    Text(timeAgoString(from: createdAtDate))
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
+            }
+            
+            Spacer()
+        }
+        .padding(.vertical, 8)
+    }
+    
+    // MARK: - User Data Fetching
+    
+    private func fetchAuthorUserIfNeeded() {
+        guard let userId = currentDateIdeaResponse.user_id,
+              let currentUserId = authVM.user?.uid,
+              userId != currentUserId else { return }
+        
+        // Check if we already have the user or are loading
+        if authorUser != nil || isLoadingAuthor { return }
+        
+        // First check cache - but force refresh if profile data is stale
+        if let cachedUser = UserCache.shared.getUser(id: userId, allowStaleProfileData: false) {
+            authorUser = cachedUser
+            return
+        }
+        
+        // Fetch from network if not cached or profile data is stale
+        isLoadingAuthor = true
+        NetworkClient.shared.getUsers(with: [userId], forceRefreshStaleProfiles: true) { result in
+            DispatchQueue.main.async {
+                self.isLoadingAuthor = false
+                switch result {
+                case .success(let users):
+                    if let user = users.first {
+                        self.authorUser = user
+                        print("🔄 Fetched author data for \(user.displayName)")
+                    } else {
+                        // Fallback to basic user object
+                        self.authorUser = User(id: userId, name: self.currentDateIdeaResponse.user_name)
+                    }
+                case .failure:
+                    // Fallback to basic user object on network failure
+                    self.authorUser = User(id: userId, name: self.currentDateIdeaResponse.user_name)
+                }
+            }
+        }
     }
 }
 
@@ -514,5 +602,5 @@ struct InfoItem: View {
     )
     
     // Show recipe example
-    DateIdeaDetailView(dateIdea: DateIdeaResponse(id: "recipe-id", summary: mockRecipeIdea, title: mockRecipeIdea.title, description: mockRecipeIdea.sales_pitch, thumbnail_b64: nil, thumbnail_url: nil, video_url: "http://example.com", videoMetadata: nil, original_source_url: nil, user_id: nil, user_name: nil, created_at: nil), viewModel: DateIdeaViewModel(toast: ToastManager()))
+    DateIdeaDetailView(dateIdea: DateIdeaResponse(id: "recipe-id", summary: mockRecipeIdea, title: mockRecipeIdea.title, description: mockRecipeIdea.sales_pitch, thumbnail_b64: nil, thumbnail_url: nil, video_url: nil, videoMetadata: nil, original_source_url: nil, user_id: nil, user_name: nil, created_at: nil, isPublic: false), viewModel: DateIdeaViewModel(toast: ToastManager()))
 }

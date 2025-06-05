@@ -18,6 +18,7 @@ struct ActivityHistoryCard: View {
     var author: User? = nil
     var sharedAt: Date? = nil
     var onRemove: (() async -> Void)? = nil
+    var onDelete: (() async -> Void)? = nil
     var groupId: String? = nil
     
     @State private var player: AVPlayer?
@@ -27,53 +28,86 @@ struct ActivityHistoryCard: View {
     @StateObject private var commentsViewModel: CommentsViewModel
     @StateObject private var dateIdeaViewModel: DateIdeaViewModel
     @State private var updatedAuthor: User?
-    
-    init(activity: DateIdeaResponse, showAuthor: Bool = false, showReactionsBar: Bool = true, author: User? = nil, sharedAt: Date? = nil, onRemove: (() async -> Void)? = nil, groupId: String? = nil) {
+    @State private var localActivity: DateIdeaResponse
+    @State private var isDeleted: Bool = false
+
+    init(activity: DateIdeaResponse, showAuthor: Bool = false, showReactionsBar: Bool = true, author: User? = nil, sharedAt: Date? = nil, onRemove: (() async -> Void)? = nil, onDelete: (() async -> Void)? = nil, groupId: String? = nil) {
         self.activity = activity
         self.showAuthor = showAuthor
         self.showReactionsBar = showReactionsBar
         self.author = author
         self.sharedAt = sharedAt
         self.onRemove = onRemove
+        self.onDelete = onDelete
         self.groupId = groupId
         self._commentsViewModel = StateObject(wrappedValue: CommentsViewModel(ideaId: activity.id, groupId: groupId))
         // Create DateIdeaViewModel with placeholder toast manager - will be updated with environment manager
         self._dateIdeaViewModel = StateObject(wrappedValue: DateIdeaViewModel(toast: ToastManager(), videoUrl: activity.cloudFrontVideoURL))
         self._updatedAuthor = State(initialValue: author)
+        self._localActivity = State(initialValue: activity)
     }
 
     var body: some View {
-        NavigationLink(destination: DateIdeaDetailView(dateIdea: activity, groupId: groupId, viewModel: dateIdeaViewModel)) {
-            cardContent
-        }
-        .buttonStyle(.plain)
-        .contextMenu {
-            if let onRemove {
-                Button(role: .destructive) {
-                    Task { await onRemove() }
-                } label: {
-                    Label("Remove from group", systemImage: "trash")
+        if isDeleted {
+            EmptyView()
+        } else {
+            NavigationLink(destination: DateIdeaDetailView(dateIdea: activity, groupId: groupId, viewModel: dateIdeaViewModel)) {
+                cardContent
+            }
+            .buttonStyle(.plain)
+            .contextMenu {
+                if let onRemove {
+                    Button(role: .destructive) {
+                        Task { await onRemove() }
+                    } label: {
+                        Label("Remove from group", systemImage: "trash")
+                    }
+                }
+                
+                if let onDelete {
+                    Button(role: .destructive) {
+                        Task { await onDelete() }
+                    } label: {
+                        Label("Delete idea", systemImage: "trash.fill")
+                    }
                 }
             }
-        }
-        .onAppear {
-            // Update the viewModel with the correct toast manager from environment
-            dateIdeaViewModel.updateToastManager(toast)
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .userProfileUpdated)) { notification in
-            // If the updated user is the author, update local state
-            if let updatedUser = notification.userInfo?["updatedUser"] as? User,
-               let currentAuthor = author,
-               updatedUser.id == currentAuthor.id {
-                updatedAuthor = updatedUser
-                print("🔄 Updated author in ActivityHistoryCard for activity \(activity.id)")
+            .onAppear {
+                // Update the viewModel with the correct toast manager from environment
+                dateIdeaViewModel.updateToastManager(toast)
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .userProfileUpdated)) { notification in
+                // If the updated user is the author, update local state
+                if let updatedUser = notification.userInfo?["updatedUser"] as? User,
+                   let currentAuthor = author,
+                   updatedUser.id == currentAuthor.id {
+                    updatedAuthor = updatedUser
+                    print("🔄 Updated author in ActivityHistoryCard for activity \(localActivity.id)")
+                }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .ideaMetadataUpdated)) { notification in
+                // Update local state if this idea's metadata was changed
+                if let ideaId = notification.userInfo?["ideaId"] as? String,
+                   ideaId == localActivity.id,
+                   let updatedIdea = notification.userInfo?["updatedIdea"] as? DateIdeaResponse {
+                    localActivity = updatedIdea
+                    print("🔄 Updated metadata for idea \(ideaId) in ActivityHistoryCard")
+                }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .ideaDeleted)) { notification in
+                // Hide this card if its idea was deleted
+                if let ideaId = notification.userInfo?["ideaId"] as? String,
+                   ideaId == localActivity.id {
+                    isDeleted = true
+                    print("🗑️ Hiding deleted idea \(ideaId) in ActivityHistoryCard")
+                }
             }
         }
     }
     
     private var videoThumbnail: some View {
         Group {
-            if let tb64 = activity.thumbnail_b64 {
+            if let tb64 = localActivity.thumbnail_b64 {
                 Base64ImageView(base64String: tb64, thumbWidth: videoWidth, thumbHeight: videoHeight)
                     .opacity(1)
             }
@@ -154,21 +188,45 @@ struct ActivityHistoryCard: View {
                 )
 
                 Spacer()
+                
+                // Visibility indicator in top right corner (only for personal ideas)
+                if groupId == nil {
+                    VStack {
+                        HStack(spacing: 4) {
+                            Image(systemName: localActivity.isPublic ? "globe" : "lock.fill")
+                                .font(.caption2)
+                                .foregroundColor(localActivity.isPublic ? .appAccent : .appPrimary)
+                            
+                            Text(localActivity.isPublic ? "Public" : "Private")
+                                .font(.caption2)
+                                .fontWeight(.medium)
+                                .foregroundColor(localActivity.isPublic ? .appAccent : .appPrimary)
+                        }
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .fill(localActivity.isPublic ? Color.appAccentLightBackground : Color.appPrimaryLightBackground)
+                        )
+                        
+                        Spacer()
+                    }
+                }
             }
 
-            Text(activity.summary.title)
+            Text(localActivity.summary.title)
                 .font(.headline)
                 .fontWeight(.semibold)
                 .lineLimit(3)
                 .fixedSize(horizontal: false, vertical: true)
 
-            if activity.summary.content_type != .recipe {
-                Label(activity.summary.location, systemImage: "mappin.and.ellipse")
+            if localActivity.summary.content_type != .recipe {
+                Label(localActivity.summary.location, systemImage: "mappin.and.ellipse")
                     .font(.subheadline)
                     .foregroundColor(.appPrimary)
             }
             
-            Text(activity.summary.sales_pitch)
+            Text(localActivity.summary.sales_pitch)
                 .font(.subheadline)
                 .foregroundColor(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -176,7 +234,7 @@ struct ActivityHistoryCard: View {
             HStack(spacing: 6) {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 6) {
-                        ForEach(activity.summary.tags.prefix(3), id: \.title) { tag in
+                        ForEach(localActivity.summary.tags.prefix(3), id: \.title) { tag in
                             CategoryPill(text: tag.title, icon: tag.icon)
                         }
                     }
@@ -189,11 +247,12 @@ struct ActivityHistoryCard: View {
 
             // Reactions and Comments bar
             if showReactionsBar {
-                HStack(spacing: 16) {
-                    ReactionBar(ideaId: activity.id, groupId: groupId)
+                VStack(alignment: .leading, spacing: 8) {
+                    // Reaction bar above
+                    ReactionBar(ideaId: localActivity.id, groupId: groupId)
                     
                     // Comment icon with count - tappable to scroll to comments
-                    NavigationLink(destination: DateIdeaDetailView(dateIdea: activity, groupId: groupId, scrollToComments: true, viewModel: dateIdeaViewModel)) {
+                    NavigationLink(destination: DateIdeaDetailView(dateIdea: localActivity, groupId: groupId, scrollToComments: true, viewModel: dateIdeaViewModel)) {
                         HStack(spacing: 4) {
                             Image(systemName: "message")
                                 .font(.title3)
@@ -207,10 +266,10 @@ struct ActivityHistoryCard: View {
                             }
                         }
                         .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                        }
-                        .buttonStyle(.plain)
+                        .padding(.vertical, 4)
                     }
+                    .buttonStyle(.plain)
+                }
             }
         }
         .padding()
@@ -235,6 +294,32 @@ struct ActivityHistoryCard: View {
                                 value: proxy.size.height)
             }
         )
+        .onReceive(NotificationCenter.default.publisher(for: .ideaVisibilityUpdated)) { notification in
+            // Update local state if this idea's visibility was changed
+            if let ideaId = notification.userInfo?["ideaId"] as? String,
+               let isPublic = notification.userInfo?["isPublic"] as? Bool,
+               ideaId == localActivity.id {
+                // Update the local activity data
+                var updatedActivity = localActivity
+                updatedActivity = DateIdeaResponse(
+                    id: updatedActivity.id,
+                    summary: updatedActivity.summary,
+                    title: updatedActivity.title,
+                    description: updatedActivity.description,
+                    thumbnail_b64: updatedActivity.thumbnail_b64,
+                    thumbnail_url: updatedActivity.thumbnail_url,
+                    video_url: updatedActivity.video_url,
+                    videoMetadata: updatedActivity.videoMetadata,
+                    original_source_url: updatedActivity.original_source_url,
+                    user_id: updatedActivity.user_id,
+                    user_name: updatedActivity.user_name,
+                    created_at: updatedActivity.created_at,
+                    isPublic: isPublic
+                )
+                localActivity = updatedActivity
+                print("🔄 Updated visibility for idea \(ideaId) in ActivityHistoryCard: \(isPublic ? "Public" : "Private")")
+            }
+        }
     }
     
     @MainActor
@@ -262,7 +347,7 @@ struct ActivityHistoryCard: View {
         Task {               // runs on a background executor by default
             do {
                 // 1️⃣  Fetch or download file (inside VideoCache actor)
-                guard let remote = URL(string: activity.cloudFrontVideoURL) else { return }
+                guard let remote = URL(string: localActivity.cloudFrontVideoURL) else { return }
                 let local = try await VideoCache.shared.localFile(for: remote)
 
                 // 2️⃣  Get (or build) asset — heavy work is inside AssetPool actor
@@ -295,7 +380,7 @@ struct ActivityHistoryCard: View {
     // MARK: - Computed Properties
     
     private var videoWidth: CGFloat {
-        if let meta = activity.videoMetadata, meta.isLandscape {
+        if let meta = localActivity.videoMetadata, meta.isLandscape {
             // Fill most of the card width when landscape, leaving some padding
             return UIScreen.main.bounds.width - 32 - 60 // card width minus side & internal paddings
         } else {
@@ -305,7 +390,7 @@ struct ActivityHistoryCard: View {
 
     private var videoHeight: CGFloat {
         // Use metadata ratio if available; otherwise default to 16:9 using the computed width
-        if let metadata = activity.videoMetadata {
+        if let metadata = localActivity.videoMetadata {
             return videoWidth / metadata.aspectRatio
         } else {
             return videoWidth * 9 / 16
@@ -357,6 +442,6 @@ struct RoundedCorner: Shape {
         tags: [Tag(title: "Romantic", icon: "heart.fill"), Tag(title: "relaxing", icon: "moon"), Tag(title: "nature", icon: "leaf")],
         suggested_itinerary: []
     )
-    ActivityHistoryCard(activity: DateIdeaResponse(id: "", summary: mockDateIdea, title: mockDateIdea.title, description: "desc", thumbnail_b64: nil, thumbnail_url: nil, video_url: "", videoMetadata: VideoMetadata(ratio_width: 16, ratio_height: 9), original_source_url: nil, user_id: nil, user_name: nil, created_at: nil))
+    ActivityHistoryCard(activity: DateIdeaResponse(id: "", summary: mockDateIdea, title: mockDateIdea.title, description: "desc", thumbnail_b64: nil, thumbnail_url: nil, video_url: nil, videoMetadata: VideoMetadata(ratio_width: 16, ratio_height: 9), original_source_url: nil, user_id: nil, user_name: nil, created_at: nil, isPublic: true))
         .environmentObject(ToastManager())
 }

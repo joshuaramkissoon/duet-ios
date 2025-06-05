@@ -15,6 +15,7 @@ class DateIdeaViewModel: ObservableObject {
     @Published var dateIdeaResponse: DateIdeaResponse? = nil
     @Published var isUpdatingRecipe: Bool = false
     @Published var isUpdatingItinerary: Bool = false
+    @Published var isUpdatingVisibility: Bool = false
     
     private var toast: ToastManager
     private weak var activityVM: ActivityHistoryViewModel?
@@ -152,6 +153,15 @@ class DateIdeaViewModel: ObservableObject {
                     isUpdatingRecipe = false
                     updateLocalRecipeData(metadata: recipeMetadata, items: requiredItems)
                     toast.success("Recipe updated!")
+                    
+                    // Notify other parts of the app that this idea's metadata changed
+                    if let updatedIdea = dateIdeaResponse {
+                        NotificationCenter.default.post(
+                            name: .ideaMetadataUpdated,
+                            object: nil,
+                            userInfo: ["ideaId": ideaId, "updatedIdea": updatedIdea]
+                        )
+                    }
                 }
             } catch {
                 await MainActor.run {
@@ -196,6 +206,15 @@ class DateIdeaViewModel: ObservableObject {
                     isUpdatingItinerary = false
                     updateLocalItineraryData(items: itineraryItems, equipment: requiredItems)
                     toast.success("Itinerary updated!")
+                    
+                    // Notify other parts of the app that this idea's metadata changed
+                    if let updatedIdea = dateIdeaResponse {
+                        NotificationCenter.default.post(
+                            name: .ideaMetadataUpdated,
+                            object: nil,
+                            userInfo: ["ideaId": ideaId, "updatedIdea": updatedIdea]
+                        )
+                    }
                 }
             } catch {
                 await MainActor.run {
@@ -217,58 +236,30 @@ class DateIdeaViewModel: ObservableObject {
     private func updateLocalRecipeData(metadata: RecipeMetadata, items: [String]) {
         guard var response = dateIdeaResponse else { return }
         
-        // Update the local data to reflect the changes
-        var updatedSummary = response.summary
-        updatedSummary.recipe_metadata = metadata
-        updatedSummary.required_items = items
+        // Update the local data to reflect the changes IN PLACE
+        // This preserves object identity to prevent NavigationLink invalidation
+        response.summary.recipe_metadata = metadata
+        response.summary.required_items = items
         
-        // Create updated response
-        let updatedResponse = DateIdeaResponse(
-            id: response.id,
-            summary: updatedSummary,
-            title: response.title,
-            description: response.description,
-            thumbnail_b64: response.thumbnail_b64,
-            thumbnail_url: response.thumbnail_url,
-            video_url: response.video_url,
-            videoMetadata: response.videoMetadata,
-            original_source_url: response.original_source_url,
-            user_id: response.user_id,
-            user_name: response.user_name,
-            created_at: response.created_at
-        )
+        dateIdeaResponse = response
+        dateIdea = response.summary
         
-        dateIdeaResponse = updatedResponse
-        dateIdea = updatedSummary
+        print("🔄 Updated recipe data locally without changing object identity")
     }
     
     /// Updates local data after successful itinerary update
     private func updateLocalItineraryData(items: [ItineraryItem], equipment: [String]) {
         guard var response = dateIdeaResponse else { return }
         
-        // Update the local data to reflect the changes
-        var updatedSummary = response.summary
-        updatedSummary.suggested_itinerary = items
-        updatedSummary.required_items = equipment
+        // Update the local data to reflect the changes IN PLACE
+        // This preserves object identity to prevent NavigationLink invalidation
+        response.summary.suggested_itinerary = items
+        response.summary.required_items = equipment
         
-        // Create updated response
-        let updatedResponse = DateIdeaResponse(
-            id: response.id,
-            summary: updatedSummary,
-            title: response.title,
-            description: response.description,
-            thumbnail_b64: response.thumbnail_b64,
-            thumbnail_url: response.thumbnail_url,
-            video_url: response.video_url,
-            videoMetadata: response.videoMetadata,
-            original_source_url: response.original_source_url,
-            user_id: response.user_id,
-            user_name: response.user_name,
-            created_at: response.created_at
-        )
+        dateIdeaResponse = response
+        dateIdea = response.summary
         
-        dateIdeaResponse = updatedResponse
-        dateIdea = updatedSummary
+        print("🔄 Updated itinerary data locally without changing object identity")
     }
 
     // MARK: - Helper Methods
@@ -282,6 +273,64 @@ class DateIdeaViewModel: ObservableObject {
     
     func resetUrlInput() {
         urlText = ""
+    }
+    
+    /// Updates the visibility of an idea
+    /// - Parameters:
+    ///   - ideaId: The ID of the idea to update
+    ///   - isPublic: The new visibility state
+    ///   - groupId: Optional group ID if this is a group idea
+    func updateVisibility(ideaId: String, isPublic: Bool, groupId: String? = nil) {
+        Task {
+            await MainActor.run {
+                isUpdatingVisibility = true
+            }
+            
+            do {
+                let endpoint = NetworkClient.shared.baseUrl + "/ideas/\(ideaId)"
+                let body = VisibilityUpdateRequest(isPublic: isPublic)
+                
+                let _: EmptyResponse = try await NetworkClient.shared.patchJSON(url: endpoint, body: body)
+                
+                await MainActor.run {
+                    // Update local state immediately
+                    if var response = dateIdeaResponse {
+                        response = DateIdeaResponse(
+                            id: response.id,
+                            summary: response.summary,
+                            title: response.title,
+                            description: response.description,
+                            thumbnail_b64: response.thumbnail_b64,
+                            thumbnail_url: response.thumbnail_url,
+                            video_url: response.video_url,
+                            videoMetadata: response.videoMetadata,
+                            original_source_url: response.original_source_url,
+                            user_id: response.user_id,
+                            user_name: response.user_name,
+                            created_at: response.created_at,
+                            isPublic: isPublic
+                        )
+                        self.dateIdeaResponse = response
+                        self.dateIdea = response.summary
+                    }
+                    
+                    isUpdatingVisibility = false
+                    toast.success(isPublic ? "Idea is now public" : "Idea is now private")
+                    
+                    // Notify other parts of the app that an idea's visibility changed
+                    NotificationCenter.default.post(
+                        name: .ideaVisibilityUpdated,
+                        object: nil,
+                        userInfo: ["ideaId": ideaId, "isPublic": isPublic]
+                    )
+                }
+            } catch {
+                await MainActor.run {
+                    isUpdatingVisibility = false
+                    toast.error("Failed to update visibility")
+                }
+            }
+        }
     }
 }
 
@@ -354,20 +403,22 @@ struct VideoMetadata: Codable {
 
 struct DateIdeaResponse: Codable, Identifiable {
     let id: String
-    let summary: DateIdea
+    var summary: DateIdea
     let title: String
     let description: String
     let thumbnail_b64: String?
     let thumbnail_url: String?
-    let video_url: String
+    let video_url: String?
     let videoMetadata: VideoMetadata?
     let original_source_url: String?
     let user_id: String?
     let user_name: String?
     let created_at: Float?
+    let isPublic: Bool
     
     /// Returns the CloudFront CDN URL for the video
     var cloudFrontVideoURL: String {
+        guard let video_url = video_url else { return "" }
         return URLHelpers.convertToCloudFrontURL(video_url)
     }
     
@@ -376,7 +427,7 @@ struct DateIdeaResponse: Codable, Identifiable {
     }
     
     static func fromGroupIdea(_ idea: GroupIdea) -> DateIdeaResponse {
-        return DateIdeaResponse(id: idea.id, summary: idea.dateIdea, title: idea.dateIdea.title, description: idea.dateIdea.summary, thumbnail_b64: idea.thumbnailB64, thumbnail_url: nil, video_url: idea.cloudFrontVideoURL, videoMetadata: idea.videoMetadata, original_source_url: idea.originalSourceUrl, user_id: nil, user_name: nil, created_at: nil)
+        return DateIdeaResponse(id: idea.id, summary: idea.dateIdea, title: idea.dateIdea.title, description: idea.dateIdea.summary, thumbnail_b64: idea.thumbnailB64, thumbnail_url: nil, video_url: idea.cloudFrontVideoURL, videoMetadata: idea.videoMetadata, original_source_url: idea.originalSourceUrl, user_id: nil, user_name: nil, created_at: nil, isPublic: false)
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -389,5 +440,24 @@ struct DateIdeaResponse: Codable, Identifiable {
         case user_id = "user_id"
         case user_name = "user_name"
         case created_at = "created_at"
+        case isPublic = "public"
     }
+}
+
+// MARK: - Request Models
+
+struct VisibilityUpdateRequest: Codable {
+    let isPublic: Bool
+    
+    enum CodingKeys: String, CodingKey {
+        case isPublic = "public"
+    }
+}
+
+// MARK: - Notification Extensions
+
+extension Notification.Name {
+    static let ideaVisibilityUpdated = Notification.Name("ideaVisibilityUpdated")
+    static let ideaMetadataUpdated = Notification.Name("ideaMetadataUpdated")
+    static let ideaDeleted = Notification.Name("ideaDeleted")
 }

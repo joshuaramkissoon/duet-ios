@@ -17,10 +17,12 @@ struct GroupsView: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 24) {
-                    // Create Group button
-                    createGroupButton
+                    // Create Group button (only show when user has groups)
+                    if !vm.groups.isEmpty {
+                        createGroupButton
+                    }
                     
-                    // My Groups section
+                    // My Groups section or Empty State
                     if !vm.groups.isEmpty {
                         groupsSection
                     } else {
@@ -131,24 +133,40 @@ struct GroupsView: View {
     
     // Empty State
     private var emptyStateView: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "person.3.fill")
-                .font(.system(size: 50))
-                .foregroundColor(.appPrimary.opacity(0.6))
-                .padding(.bottom, 8)
+        VStack(spacing: 20) {
+            Image("duet-group")
+                .resizable()
+                .scaledToFit()
+                .padding(.horizontal, 60)
             
             Text("No groups yet")
                 .font(.title3)
                 .fontWeight(.bold)
             
-            Text("Create a group to share date ideas with friends or your partner")
+            Text("Create groups to share ideas with your peeps!")
                 .font(.body)
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 32)
+            
+            Button(action: {
+                showingCreateSheet = true
+            }) {
+                HStack {
+                    Image(systemName: "plus.circle.fill")
+                        .font(.body)
+                    Text("Create Group")
+                        .fontWeight(.medium)
+                }
+                .foregroundColor(.appPrimary)
+                .padding(.horizontal, 24)
+                .padding(.vertical, 12)
+                .background(Color.appPrimaryLightBackground)
+                .cornerRadius(12)
+            }
+            .padding(.top, 8)
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 60)
     }
 }
 
@@ -386,7 +404,7 @@ struct CreateGroupSheet: View {
                                isValidInput ?
                                Color.appPrimaryLightBackground : Color.gray
                            )
-                           .cornerRadius(16)
+                           .cornerRadius(12)
                            .padding(.horizontal, 24)
                    }
                    .disabled(!isValidInput)

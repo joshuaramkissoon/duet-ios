@@ -81,6 +81,8 @@ enum CreditIconType {
             return .purchase
         case "bonus":
             return .bonus
+        case "level_up_bonus":
+            return .levelUp
         case "refund":
             return .refund
         default:

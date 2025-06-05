@@ -22,6 +22,7 @@ struct CreditBalanceCard: View {
     
     var body: some View {
         Button(action: {
+            HapticFeedbacks.soft()
             creditUIManager.showCreditsPage()
         }) {
             HStack(spacing: 12) {
@@ -154,6 +155,7 @@ struct CreditBadge: View {
     
     var body: some View {
         Button(action: {
+            HapticFeedbacks.soft()
             creditUIManager.showCreditsPage()
         }) {
             HStack(spacing: 6) {

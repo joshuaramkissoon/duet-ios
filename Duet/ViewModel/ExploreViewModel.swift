@@ -58,6 +58,7 @@ class ExploreViewModel: ObservableObject {
     init() {
         loadInitialFeed()
         setupSearchDebouncing()
+        setupNotificationListeners()
     }
     
     private func setupSearchDebouncing() {
@@ -73,6 +74,108 @@ class ExploreViewModel: ObservableObject {
                 }
             }
             .store(in: &cancellables)
+    }
+    
+    private func setupNotificationListeners() {
+        // Listen for visibility updates
+        NotificationCenter.default.publisher(for: .ideaVisibilityUpdated)
+            .sink { [weak self] notification in
+                guard let self = self,
+                      let ideaId = notification.userInfo?["ideaId"] as? String,
+                      let isPublic = notification.userInfo?["isPublic"] as? Bool else { return }
+                
+                self.updateIdeaVisibility(ideaId: ideaId, isPublic: isPublic)
+            }
+            .store(in: &cancellables)
+        
+        // Listen for metadata updates
+        NotificationCenter.default.publisher(for: .ideaMetadataUpdated)
+            .sink { [weak self] notification in
+                guard let self = self,
+                      let ideaId = notification.userInfo?["ideaId"] as? String,
+                      let updatedIdea = notification.userInfo?["updatedIdea"] as? DateIdeaResponse else { return }
+                
+                self.updateIdeaMetadata(ideaId: ideaId, updatedIdea: updatedIdea)
+            }
+            .store(in: &cancellables)
+        
+        // Listen for idea deletions
+        NotificationCenter.default.publisher(for: .ideaDeleted)
+            .sink { [weak self] notification in
+                guard let self = self,
+                      let ideaId = notification.userInfo?["ideaId"] as? String else { return }
+                
+                self.removeDeletedIdea(ideaId: ideaId)
+            }
+            .store(in: &cancellables)
+    }
+    
+    private func updateIdeaVisibility(ideaId: String, isPublic: Bool) {
+        // Update in feed items array
+        if let index = feedItems.firstIndex(where: { $0.id == ideaId }) {
+            var updatedActivity = feedItems[index]
+            updatedActivity = DateIdeaResponse(
+                id: updatedActivity.id,
+                summary: updatedActivity.summary,
+                title: updatedActivity.title,
+                description: updatedActivity.description,
+                thumbnail_b64: updatedActivity.thumbnail_b64,
+                thumbnail_url: updatedActivity.thumbnail_url,
+                video_url: updatedActivity.video_url,
+                videoMetadata: updatedActivity.videoMetadata,
+                original_source_url: updatedActivity.original_source_url,
+                user_id: updatedActivity.user_id,
+                user_name: updatedActivity.user_name,
+                created_at: updatedActivity.created_at,
+                isPublic: isPublic
+            )
+            feedItems[index] = updatedActivity
+            print("🔄 ExploreViewModel: Updated visibility for idea \(ideaId): \(isPublic ? "Public" : "Private")")
+        }
+        
+        // Update in search results array if it exists there too
+        if let searchIndex = searchResults.firstIndex(where: { $0.id == ideaId }) {
+            var updatedActivity = searchResults[searchIndex]
+            updatedActivity = DateIdeaResponse(
+                id: updatedActivity.id,
+                summary: updatedActivity.summary,
+                title: updatedActivity.title,
+                description: updatedActivity.description,
+                thumbnail_b64: updatedActivity.thumbnail_b64,
+                thumbnail_url: updatedActivity.thumbnail_url,
+                video_url: updatedActivity.video_url,
+                videoMetadata: updatedActivity.videoMetadata,
+                original_source_url: updatedActivity.original_source_url,
+                user_id: updatedActivity.user_id,
+                user_name: updatedActivity.user_name,
+                created_at: updatedActivity.created_at,
+                isPublic: isPublic
+            )
+            searchResults[searchIndex] = updatedActivity
+        }
+    }
+    
+    private func updateIdeaMetadata(ideaId: String, updatedIdea: DateIdeaResponse) {
+        // Update in feed items array
+        if let index = feedItems.firstIndex(where: { $0.id == ideaId }) {
+            feedItems[index] = updatedIdea
+            print("🔄 ExploreViewModel: Updated metadata for idea \(ideaId)")
+        }
+        
+        // Update in search results array if it exists there too
+        if let searchIndex = searchResults.firstIndex(where: { $0.id == ideaId }) {
+            searchResults[searchIndex] = updatedIdea
+        }
+    }
+    
+    private func removeDeletedIdea(ideaId: String) {
+        // Remove from feed items array
+        feedItems.removeAll { $0.id == ideaId }
+        
+        // Remove from search results array
+        searchResults.removeAll { $0.id == ideaId }
+        
+        print("🗑️ ExploreViewModel: Removed deleted idea \(ideaId) from feed and search results")
     }
     
     // MARK: - Feed Functions

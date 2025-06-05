@@ -1,9 +1,8 @@
 import Foundation
 import UniformTypeIdentifiers
 import SwiftUI
-import FirebaseFirestore
 
-struct ExtensionGroup: Identifiable, Hashable {
+struct ExtensionGroup: Identifiable, Hashable, Decodable {
     let id: String
     let name: String
 }
@@ -89,21 +88,24 @@ final class ShareSheetViewModel: ObservableObject {
     }
 
     private func loadGroups() {
-        guard let uid = SharedUserManager.shared.currentUserId else { return }
+        guard SharedUserManager.shared.currentUserId != nil else { 
+            print("❌ No user ID found, skipping group loading")
+            return 
+        }
+        
         Task {
             do {
-                let snap = try await Firestore.firestore()
-                    .collection("groups")
-                    .whereField("members", arrayContains: uid)
-                    .getDocuments()
-                let list = snap.documents.compactMap { doc -> ExtensionGroup? in
-                    guard let name = doc.data()["name"] as? String else { return nil }
-                    return ExtensionGroup(id: doc.documentID, name: name)
+                print("🔄 Loading groups from backend...")
+                let fetchedGroups = try await api.getUserGroups()
+                await MainActor.run {
+                    self.groups = fetchedGroups.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+                    print("✅ Loaded \(self.groups.count) groups successfully")
                 }
-                self.groups = list.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
             } catch {
-                self.error = error.localizedDescription
-                print("❌ Failed to load groups: \(error)")
+                await MainActor.run {
+                    self.error = error.localizedDescription
+                    print("❌ Failed to load groups: \(error)")
+                }
             }
         }
     }
@@ -112,7 +114,6 @@ final class ShareSheetViewModel: ObservableObject {
     private func fetchThumbnail(for urlString: String) {
         guard let encoded = urlString.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) else { return }
         let endpoint = "https://duet-backend-490xp.kinsta.app/thumbnail?url=" + encoded
-//        let endpoint = "https://8dca7b206740.ngrok.app/thumbnail?url=" + encoded
         guard let reqUrl = URL(string: endpoint) else { return }
         Task {
             do {

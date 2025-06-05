@@ -139,8 +139,3 @@ class ProfileViewModel: ObservableObject {
         return newImage
     }
 }
-
-// MARK: - Notification Extensions
-extension Notification.Name {
-    static let userProfileUpdated = Notification.Name("userProfileUpdated")
-}

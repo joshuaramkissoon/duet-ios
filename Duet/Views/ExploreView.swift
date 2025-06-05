@@ -402,6 +402,7 @@ struct ExploreCard: View {
     @EnvironmentObject private var authVM: AuthenticationViewModel
     let activity: DateIdeaResponse
     @Binding var selectedActivity: DateIdeaResponse?
+    var hideNavigationBar: Bool = false
     
     @State private var player: AVPlayer?
     @State private var looping: LoopingPlayer?
@@ -409,43 +410,108 @@ struct ExploreCard: View {
     @State private var showVideo = false
     @StateObject private var commentsViewModel: CommentsViewModel
     @StateObject private var dateIdeaViewModel: DateIdeaViewModel
+    @State private var localActivity: DateIdeaResponse
+    @State private var isDeleted: Bool = false
     
     // State for user data fetching
     @State private var authorUser: User?
     @State private var isLoadingAuthor = false
+    
+    // Add task tracking to prevent race conditions
+    @State private var loadingTask: Task<Void, Never>?
 
-    init(activity: DateIdeaResponse, selectedActivity: Binding<DateIdeaResponse?>) {
+    init(activity: DateIdeaResponse, selectedActivity: Binding<DateIdeaResponse?>, hideNavigationBar: Bool = false) {
         self.activity = activity
         self._selectedActivity = selectedActivity
+        self.hideNavigationBar = hideNavigationBar
         self._commentsViewModel = StateObject(wrappedValue: CommentsViewModel(ideaId: activity.id, groupId: nil))
         self._dateIdeaViewModel = StateObject(wrappedValue: DateIdeaViewModel(toast: ToastManager(), videoUrl: activity.cloudFrontVideoURL))
+        self._localActivity = State(initialValue: activity)
     }
 
     var body: some View {
-        NavigationLink(destination: DateIdeaDetailView(dateIdea: activity, viewModel: dateIdeaViewModel)) {
-            cardContent
-        }
-        .buttonStyle(.plain)
-        .onAppear {
-            // Update the viewModel with the correct toast manager from environment
-            dateIdeaViewModel.updateToastManager(toast)
-            // Fetch author user data if needed
-            fetchAuthorUserIfNeeded()
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .userProfileUpdated)) { notification in
-            // If the updated user is the author of this activity, clear local state to trigger refresh
-            if let updatedUser = notification.userInfo?["updatedUser"] as? User,
-               let authorId = activity.user_id,
-               updatedUser.id == authorId {
-                authorUser = updatedUser // Update immediately with new data
-                print("🔄 Updated author user for activity \(activity.id) with new profile image")
+        if isDeleted {
+            EmptyView()
+        } else {
+            NavigationLink(destination: DateIdeaDetailView(dateIdea: activity, hideNavigationBar: hideNavigationBar, viewModel: dateIdeaViewModel)) {
+                cardContent
+            }
+            .buttonStyle(.plain)
+            .onAppear {
+                // Update the viewModel with the correct toast manager from environment
+                dateIdeaViewModel.updateToastManager(toast)
+                // Fetch author user data if needed
+                fetchAuthorUserIfNeeded()
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .userProfileUpdated)) { notification in
+                // If the updated user is the author of this activity, clear local state to trigger refresh
+                if let updatedUser = notification.userInfo?["updatedUser"] as? User,
+                   let authorId = localActivity.user_id,
+                   updatedUser.id == authorId {
+                    authorUser = updatedUser // Update immediately with new data
+                    print("🔄 Updated author user for activity \(localActivity.id) with new profile image")
+                }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .ideaVisibilityUpdated)) { notification in
+                // Update local state if this idea's visibility was changed
+                if let ideaId = notification.userInfo?["ideaId"] as? String,
+                   let isPublic = notification.userInfo?["isPublic"] as? Bool,
+                   ideaId == localActivity.id {
+                    // Update the local activity data
+                    var updatedActivity = localActivity
+                    updatedActivity = DateIdeaResponse(
+                        id: updatedActivity.id,
+                        summary: updatedActivity.summary,
+                        title: updatedActivity.title,
+                        description: updatedActivity.description,
+                        thumbnail_b64: updatedActivity.thumbnail_b64,
+                        thumbnail_url: updatedActivity.thumbnail_url,
+                        video_url: updatedActivity.video_url,
+                        videoMetadata: updatedActivity.videoMetadata,
+                        original_source_url: updatedActivity.original_source_url,
+                        user_id: updatedActivity.user_id,
+                        user_name: updatedActivity.user_name,
+                        created_at: updatedActivity.created_at,
+                        isPublic: isPublic
+                    )
+                    localActivity = updatedActivity
+                    print("🔄 Updated visibility for idea \(ideaId) in ExploreCard: \(isPublic ? "Public" : "Private")")
+                }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .ideaMetadataUpdated)) { notification in
+                // Update local state if this idea's metadata was changed
+                if let ideaId = notification.userInfo?["ideaId"] as? String,
+                   ideaId == localActivity.id,
+                   let updatedIdea = notification.userInfo?["updatedIdea"] as? DateIdeaResponse {
+                    localActivity = updatedIdea
+                    print("🔄 Updated metadata for idea \(ideaId) in ExploreCard")
+                }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .ideaDeleted)) { notification in
+                // Hide this card if its idea was deleted
+                if let ideaId = notification.userInfo?["ideaId"] as? String,
+                   ideaId == localActivity.id {
+                    isDeleted = true
+                    print("🗑️ Hiding deleted idea \(ideaId) in ExploreCard")
+                }
+            }
+            .onDisappear {
+                // Cancel any ongoing loading task
+                loadingTask?.cancel()
+                loadingTask = nil
+                
+                if let lp = looping {
+                    SmallPlayerPool.shared.recycle(lp.player)
+                    looping = nil
+                    player  = nil
+                }
             }
         }
     }
     
     private var videoThumbnail: some View {
         Group {
-            if let tb64 = activity.thumbnail_b64 {
+            if let tb64 = localActivity.thumbnail_b64 {
                 Base64ImageView(base64String: tb64, thumbWidth: videoWidth, thumbHeight: videoHeight)
                     .opacity(1)
             }
@@ -457,7 +523,7 @@ struct ExploreCard: View {
     
     @ViewBuilder
     private func authorSection() -> some View {
-        if let userId = activity.user_id, let userName = activity.user_name {
+        if let userId = localActivity.user_id, let userName = localActivity.user_name {
             let currentUserId = authVM.user?.uid
             let displayName = userId == currentUserId ? "You" : userName
             
@@ -480,7 +546,7 @@ struct ExploreCard: View {
                             .fontWeight(.medium)
                             .foregroundColor(.primary)
 
-                    if let createdAtTimestamp = activity.created_at {
+                    if let createdAtTimestamp = localActivity.created_at {
                         Spacer()
                         let createdAtDate = Date(timeIntervalSince1970: TimeInterval(createdAtTimestamp))
                         Text(timeAgoString(from: createdAtDate))
@@ -497,7 +563,7 @@ struct ExploreCard: View {
         } else {
             // Debug: Show when user info is missing
             #if DEBUG
-            if activity.user_id == nil && activity.user_name == nil {
+            if localActivity.user_id == nil && localActivity.user_name == nil {
                 HStack {
                     Text("No author info available")
                         .font(.caption2)
@@ -541,26 +607,40 @@ struct ExploreCard: View {
             
             // Content Section
             VStack(alignment: .leading, spacing: 8) {
-                Text(activity.summary.title)
+                Text(localActivity.summary.title)
                     .font(.headline)
                     .fontWeight(.semibold)
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
                 
-                Text(activity.summary.sales_pitch)
+                Text(localActivity.summary.sales_pitch)
                     .font(.subheadline)
                     .foregroundColor(.secondary)
                     .lineLimit(3)
                     .fixedSize(horizontal: false, vertical: true)
+                    
+                // Tags (removed visibility indicator since explore feed only shows public ideas)
+                HStack(spacing: 6) {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 6) {
+                            ForEach(localActivity.summary.tags.prefix(3), id: \.title) { tag in
+                                CategoryPill(text: tag.title, icon: tag.icon)
+                            }
+                        }
+                        .padding(.leading, 4)
+                        .padding(.trailing, 4)
+                    }
+                }
             }
             .padding(.horizontal, 4)
 
             // Reactions and Comments bar
-            HStack(spacing: 16) {
-                ReactionBar(ideaId: activity.id, groupId: nil)
+            VStack(alignment: .leading, spacing: 8) {
+                // Reaction bar above
+                ReactionBar(ideaId: localActivity.id, groupId: nil)
                 
                 // Comment icon with count - tappable to scroll to comments
-                NavigationLink(destination: DateIdeaDetailView(dateIdea: activity, scrollToComments: true, viewModel: dateIdeaViewModel)) {
+                NavigationLink(destination: DateIdeaDetailView(dateIdea: localActivity, scrollToComments: true, hideNavigationBar: hideNavigationBar, viewModel: dateIdeaViewModel)) {
                     HStack(spacing: 4) {
                         Image(systemName: "message")
                             .font(.title3)
@@ -586,17 +666,14 @@ struct ExploreCard: View {
                 .fill(Color(.systemBackground))
         )
         .shadow(color: Color.black.opacity(0.05), radius: 6, x: 0, y: 2)
-        .onDisappear {
-            if let lp = looping {
-                SmallPlayerPool.shared.recycle(lp.player)
-                looping = nil
-                player  = nil
-            }
-        }
     }
     
     @MainActor
     private func stopPlayback() {
+        // Cancel any ongoing loading task first
+        loadingTask?.cancel()
+        loadingTask = nil
+        
         if let lp = looping {
             lp.player.pause()
             SmallPlayerPool.shared.recycle(lp.player)
@@ -617,17 +694,35 @@ struct ExploreCard: View {
         // Already set up? Just flag active.
         if looping != nil { return }
 
-        Task {               // runs on a background executor by default
+        // Cancel any existing loading task before starting a new one
+        loadingTask?.cancel()
+        
+        loadingTask = Task {               // runs on a background executor by default
             do {
+                // Check if task was cancelled before proceeding
+                try Task.checkCancellation()
+                
                 // 1️⃣  Fetch or download file (inside VideoCache actor)
-                guard let remote = URL(string: activity.cloudFrontVideoURL) else { return }
+                guard let remote = URL(string: localActivity.cloudFrontVideoURL) else { return }
                 let local = try await VideoCache.shared.localFile(for: remote)
+
+                // Check cancellation again after potentially long-running operation
+                try Task.checkCancellation()
 
                 // 2️⃣  Get (or build) asset — heavy work is inside AssetPool actor
                 let asset = try await AssetPool.shared.asset(for: local)
 
+                // Check cancellation one more time before UI updates
+                try Task.checkCancellation()
+
                 // 3️⃣  Hop to MainActor for the lightweight player wiring
                 await MainActor.run {
+                    // Double-check that we haven't been cancelled and state is still valid
+                    guard !Task.isCancelled, looping == nil else {
+                        print("🚫 Video setup cancelled or already configured")
+                        return
+                    }
+                    
                     let queue = SmallPlayerPool.shared.obtain()
                     let item  = AVPlayerItem(asset: asset)
                     looping   = LoopingPlayer(player: queue, item: item)
@@ -644,6 +739,9 @@ struct ExploreCard: View {
                         }
                     }
                 }
+            } catch is CancellationError {
+                // Task was cancelled, this is expected behavior
+                print("🚫 Video loading cancelled")
             } catch {
                 print("❌ video load:", error)
             }
@@ -653,7 +751,7 @@ struct ExploreCard: View {
     // MARK: - User Data Fetching
     
     private func fetchAuthorUserIfNeeded() {
-        guard let userId = activity.user_id else { return }
+        guard let userId = localActivity.user_id else { return }
         
         // Check if we already have the user or are loading
         if authorUser != nil || isLoadingAuthor { return }
@@ -676,11 +774,11 @@ struct ExploreCard: View {
                         print("🔄 Refreshed user data for \(user.displayName) (profile data was stale)")
                     } else {
                         // Fallback to basic user object
-                        self.authorUser = User(id: userId, name: self.activity.user_name)
+                        self.authorUser = User(id: userId, name: self.localActivity.user_name)
                     }
                 case .failure:
                     // Fallback to basic user object on network failure
-                    self.authorUser = User(id: userId, name: self.activity.user_name)
+                    self.authorUser = User(id: userId, name: self.localActivity.user_name)
                 }
             }
         }
@@ -689,7 +787,7 @@ struct ExploreCard: View {
     // MARK: - Computed Properties
     
     private var videoWidth: CGFloat {
-        if let meta = activity.videoMetadata, meta.isLandscape {
+        if let meta = localActivity.videoMetadata, meta.isLandscape {
             // Wider card width with padding similar to ActivityHistoryCard
             return UIScreen.main.bounds.width - 32 - 60
         } else {
@@ -698,7 +796,7 @@ struct ExploreCard: View {
     }
 
     private var videoHeight: CGFloat {
-        if let metadata = activity.videoMetadata {
+        if let metadata = localActivity.videoMetadata {
             return videoWidth / metadata.aspectRatio
         } else {
             return videoWidth * 9 / 16

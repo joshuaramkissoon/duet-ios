@@ -29,123 +29,130 @@ struct ShareToGroupView: View {
     @State private var showCreateGroupSheet = false
 
     var body: some View {
-        VStack(spacing: 16) {
-            Text("Share to Group")
-                .font(.headline)
-                .padding(.top, 16)
+        NavigationStack {
+            VStack(spacing: 16) {
+                if groupsVM.groups.isEmpty {
+                    VStack(spacing: 16) {
+                        Image("duet-group")
+                            .resizable()
+                            .scaledToFit()
+                            .padding(.horizontal, 40)
+                            .padding(.top, 20)
 
-            if groupsVM.groups.isEmpty {
-                VStack(spacing: 16) {
-                    Image(systemName: "person.3.fill")
-                        .font(.system(size: 50))
-                        .foregroundColor(.appPrimary.opacity(0.6))
-                    
-                    Text("No Groups Yet")
-                        .font(.title3)
-                        .fontWeight(.bold)
-                    
-                    Text("You're not in any groups yet. Create a group first to share this idea.")
-                        .foregroundColor(.secondary)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, 32)
-                    
-                    Button(action: {
-                        showCreateGroupSheet = true
-                    }) {
-                        HStack {
-                            Image(systemName: "plus.circle.fill")
-                            Text("Create Group")
-                        }
-                        .padding(.horizontal, 24)
-                        .padding(.vertical, 12)
-                        .background(Color.appPrimary)
-                        .foregroundColor(.white)
-                        .cornerRadius(16)
-                    }
-                    .padding(.top, 8)
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 40)
-            } else {
-                // List of groups
-                ScrollView {
-                    VStack(spacing: 8) {
-                        // Thumbnail section
-                        if let thumbnailB64 = idea.thumbnail_b64 {
-                            VStack(spacing: 12) {
-                                Base64ImageView(
-                                    base64String: thumbnailB64,
-                                    thumbWidth: 200,
-                                    thumbHeight: 200 / (idea.videoMetadata?.aspectRatio ?? 16/9)
-                                )
-                                
-                                Text(idea.title)
-                                    .font(.headline)
-                                    .fontWeight(.bold)
-                                    .multilineTextAlignment(.center)
-                                    .padding(.horizontal)
-                            }
-                            .padding(.bottom, 16)
-                        } else {
-                            VStack(spacing: 8) {
-                                Image(systemName: "square.and.arrow.up")
-                                    .font(.system(size: 32))
-                                    .foregroundColor(.appPrimary)
-                                
-                                Text("Share Date Idea")
-                                    .font(.title2)
-                                    .fontWeight(.bold)
-                                
-                                Text("Choose a group to share this amazing date idea with")
-                                    .font(.subheadline)
-                                    .foregroundColor(.secondary)
-                                    .multilineTextAlignment(.center)
-                            }
-                            .padding(.vertical, 20)
-                        }
+                        Text("No Groups Yet")
+                            .font(.title3)
+                            .fontWeight(.bold)
+                            .foregroundColor(.midnightSlateSoft)
                         
-                        // Create Group button
+                        Text("You're not in any groups yet. Create a group first to share this idea.")
+                            .foregroundColor(.secondary)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, 32)
+                        
                         Button(action: {
                             showCreateGroupSheet = true
                         }) {
                             HStack {
                                 Image(systemName: "plus.circle.fill")
-                                    .font(.title2)
-                                    .foregroundStyle(Color.appPrimary)
-                                Text("Create a new group")
-                                    .fontWeight(.medium)
-                                    .foregroundStyle(Color.appPrimary)
-                                Spacer()
-                                Image(systemName: "chevron.right")
-                                    .font(.caption)
-                                    .foregroundColor(.gray)
+                                Text("Create Group")
                             }
-                            .padding()
-                            .background(Color.white)
-                            .cornerRadius(16)
-                            .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: 2)
+                            .padding(.horizontal, 24)
+                            .padding(.vertical, 12)
+                            .background(Color.appPrimaryLightBackground)
+                            .foregroundColor(.appPrimary)
+                            .cornerRadius(12)
                         }
-                        .padding(.horizontal)
-                        
-                        Divider().padding(12)
-                        
-                        LazyVStack(spacing: 12) {
-                            ForEach(groupsVM.groups, id: \.id) { group in
-                                GroupCard(
-                                    group: group,
-                                    onInvite: nil,
-                                    onSelect: {
-                                        Task {
-                                            await vm.share(idea, to: group, using: groupsVM)
+                        .padding(.top, 8)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 40)
+                } else {
+                    // List of groups
+                    ScrollView {
+                        VStack(spacing: 8) {
+                            // Thumbnail section
+                            if let thumbnailB64 = idea.thumbnail_b64 {
+                                VStack(spacing: 12) {
+                                    Base64ImageView(
+                                        base64String: thumbnailB64,
+                                        thumbWidth: 200,
+                                        thumbHeight: 200 / (idea.videoMetadata?.aspectRatio ?? 16/9)
+                                    )
+                                    
+                                    Text(idea.title)
+                                        .font(.headline)
+                                        .fontWeight(.bold)
+                                        .multilineTextAlignment(.center)
+                                        .padding(.horizontal)
+                                }
+                                .padding(.top, 16)
+                                .padding(.bottom, 16)
+                            } else {
+                                VStack(spacing: 8) {
+                                    Image(systemName: "square.and.arrow.up")
+                                        .font(.system(size: 32))
+                                        .foregroundColor(.appPrimary)
+                                    
+                                    Text("Share Date Idea")
+                                        .font(.title2)
+                                        .fontWeight(.bold)
+                                    
+                                    Text("Choose a group to share this amazing date idea with")
+                                        .font(.subheadline)
+                                        .foregroundColor(.secondary)
+                                        .multilineTextAlignment(.center)
+                                }
+                                .padding(.vertical, 20)
+                            }
+                            
+                            // Create Group button
+                            Button(action: {
+                                showCreateGroupSheet = true
+                            }) {
+                                HStack {
+                                    Image(systemName: "plus.circle.fill")
+                                        .font(.title2)
+                                        .foregroundStyle(Color.appPrimary)
+                                    Text("Create a new group")
+                                        .fontWeight(.medium)
+                                        .foregroundStyle(Color.appPrimary)
+                                    Spacer()
+                                    Image(systemName: "chevron.right")
+                                        .font(.caption)
+                                        .foregroundColor(.gray)
+                                }
+                                .padding()
+                                .background(Color.white)
+                                .cornerRadius(16)
+                                .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: 2)
+                            }
+                            .padding(.horizontal)
+                            
+                            Divider().padding(12)
+                            
+                            LazyVStack(spacing: 12) {
+                                ForEach(groupsVM.groups, id: \.id) { group in
+                                    GroupCard(
+                                        group: group,
+                                        onInvite: nil,
+                                        onSelect: {
+                                            Task {
+                                                await vm.share(idea, to: group, using: groupsVM)
+                                            }
                                         }
-                                    }
-                                )
+                                    )
+                                }
                             }
+                            .padding(.horizontal)
                         }
-                        .padding(.horizontal)
                     }
                 }
             }
+            .withAppBackground()
+            .navigationTitle("Share to Group")
+            .navigationBarTitleDisplayMode(.inline)
+            .toast($toast.state)
+            .onAppear { groupsVM.startListening() }
         }
         .sheet(isPresented: $showCreateGroupSheet) {
             CreateGroupSheet(onSubmit: { name, emoji in
@@ -156,9 +163,6 @@ struct ShareToGroupView: View {
             })
             .buttonStyle(.plain)
         }
-        .withAppBackground()
-        .toast($toast.state)
-        .onAppear { groupsVM.startListening() }
     }
 }
 
@@ -182,7 +186,7 @@ struct ShareToGroupView_Previews: PreviewProvider {
     static var previews: some View {
         
         ShareToGroupView(
-            idea: DateIdeaResponse(id: "id", summary: dateIdea, title: dateIdea.title, description: dateIdea.summary, thumbnail_b64: nil, thumbnail_url: nil, video_url: "http://example.com/video", videoMetadata: nil, original_source_url: nil, user_id: nil, user_name: nil, created_at: nil),
+            idea: DateIdeaResponse(id: "id", summary: dateIdea, title: dateIdea.title, description: dateIdea.summary, thumbnail_b64: nil, thumbnail_url: nil, video_url: nil, videoMetadata: nil, original_source_url: nil, user_id: nil, user_name: nil, created_at: nil, isPublic: false),
             isPresented: $showing,
             toastManager: ToastManager()
         )

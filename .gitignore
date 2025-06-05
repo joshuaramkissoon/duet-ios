@@ -62,3 +62,5 @@ fastlane/screenshots/**/*.png
 fastlane/test_output
 
 firestore.rules
+Config.xcconfig
+Duet/Config.xcconfig

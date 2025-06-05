@@ -154,7 +154,7 @@ struct ActivityDetailLoader: View {
         tags: [Tag(title: "Romantic", icon: "heart.fill"), Tag(title: "relaxing", icon: "moon"), Tag(title: "nature", icon: "leaf")],
         suggested_itinerary: []
     )
-    let res = DateIdeaResponse(id: "", summary: mockDateIdea, title: "Title", description: "Desc", thumbnail_b64: nil, thumbnail_url: nil, video_url: "", videoMetadata: VideoMetadata(ratio_width: 9, ratio_height: 16), original_source_url: nil, user_id: nil, user_name: nil, created_at: nil)
+    let res = DateIdeaResponse(id: "", summary: mockDateIdea, title: "Title", description: "Desc", thumbnail_b64: nil, thumbnail_url: nil, video_url: nil, videoMetadata: VideoMetadata(ratio_width: 9, ratio_height: 16), original_source_url: nil, user_id: nil, user_name: nil, created_at: nil, isPublic: false)
     let vm = ActivityHistoryViewModel(activities: [res])
     ActivityHistoryView(viewModel: vm)
         .environmentObject(ToastManager())

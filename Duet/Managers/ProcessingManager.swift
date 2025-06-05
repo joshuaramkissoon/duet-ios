@@ -2,17 +2,24 @@ import Foundation
 import FirebaseAuth
 import FirebaseFirestore
 import Combine
+import SwiftUI
 
 class ProcessingManager: ObservableObject {
     @Published var userProcessingJobs: [ProcessingJob] = []
     @Published var groupProcessingJobs: [String: [ProcessingJob]] = [:] // groupId -> jobs
+    
+    // Notification setting from user preferences
+    @AppStorage("notificationsEnabled") private var notificationsEnabled = true
     
     private let db = Firestore.firestore()
     private var userListener: ListenerRegistration?
     private var groupListeners: [String: ListenerRegistration] = [:]
     private var toast: ToastManager
     private weak var activityVM: ActivityHistoryViewModel?
+    private weak var authViewModel: AuthenticationViewModel?
+    private weak var myLibraryVM: MyLibraryViewModel?
     private let creditService = CreditService.shared
+    private let notificationManager = NotificationManager.shared
     
     init(toast: ToastManager, activityVM: ActivityHistoryViewModel? = nil) {
         self.toast = toast
@@ -27,6 +34,16 @@ class ProcessingManager: ObservableObject {
     // Inject / update the shared ActivityHistoryViewModel so completed jobs can be inserted immediately
     func updateActivityVM(_ vm: ActivityHistoryViewModel) {
         self.activityVM = vm
+    }
+    
+    // Inject / update the AuthenticationViewModel for user data refreshes
+    func updateAuthViewModel(_ vm: AuthenticationViewModel) {
+        self.authViewModel = vm
+    }
+    
+    // Inject / update the MyLibraryViewModel for idea count updates
+    func updateMyLibraryViewModel(_ vm: MyLibraryViewModel) {
+        self.myLibraryVM = vm
     }
     
     // MARK: - User Processing Jobs
@@ -197,8 +214,11 @@ class ProcessingManager: ObservableObject {
             throw ProcessingError.insufficientCredits
         }
         
+        // Read default visibility setting from UserDefaults
+        let defaultPublishIdeas = UserDefaults.standard.bool(forKey: "defaultPublishIdeas")
+        
         let endpoint = NetworkClient.shared.baseUrl + "/summarise"
-        let body = ProcessingRequest(url: url, userId: userId)
+        let body = ProcessingRequest(url: url, userId: userId, isPublic: defaultPublishIdeas)
         
         do {
             let response: ProcessingResponse = try await NetworkClient.shared.postJSON(url: endpoint, body: body)
@@ -226,8 +246,11 @@ class ProcessingManager: ObservableObject {
             throw ProcessingError.insufficientCredits
         }
         
+        // For group ideas, always default to false (private) since groups are not public for now
+        let defaultPublishIdeas = false
+        
         let endpoint = NetworkClient.shared.baseUrl + "/groups/add-url"
-        let body = GroupProcessingRequest(url: url, userId: userId, groupId: groupId)
+        let body = GroupProcessingRequest(url: url, userId: userId, groupId: groupId, isPublic: defaultPublishIdeas)
         
         do {
             let response: ProcessingResponse = try await NetworkClient.shared.postJSON(url: endpoint, body: body)
@@ -269,6 +292,15 @@ class ProcessingManager: ObservableObject {
                     await MainActor.run {
                         toast.success("✨ \(result.summary.title)")
                         
+                        // Send local notification if notifications are enabled
+                        if notificationsEnabled {
+                            notificationManager.scheduleIdeaCompletedNotification(
+                                ideaId: result.id,
+                                ideaTitle: result.summary.title,
+                                groupId: job.groupId
+                            )
+                        }
+                        
                         // Refresh UI immediately by inserting into local cache.
                         if job.groupId == nil {
                             if let vm = activityVM {
@@ -278,16 +310,59 @@ class ProcessingManager: ObservableObject {
                                     vm.loadActivities()
                                 }
                             }
+                            
+                            // Update MyLibraryViewModel for personal ideas to track idea count
+                            if let libraryVM = myLibraryVM {
+                                libraryVM.addNewIdea(result)
+                                print("📚 Updated MyLibraryViewModel with new idea - New total: \(libraryVM.totalUserIdeas)")
+                            }
+                        }
+                        
+                        // Force refresh current user data to update player level after creating new idea
+                        // This ensures the level pill and roadmap reflect any level changes immediately
+                        if let authVM = authViewModel {
+                            authVM.forceRefreshCurrentUser()
                         }
                     }
                 } catch {
                     await MainActor.run {
                         toast.success("Video processed successfully!")
+                        
+                        // Send notification even if we couldn't fetch the result details
+                        // Use job URL or a generic title
+                        let ideaTitle = "New Idea"
+                        if notificationsEnabled {
+                            notificationManager.scheduleIdeaCompletedNotification(
+                                ideaId: job.resultId ?? UUID().uuidString,
+                                ideaTitle: ideaTitle,
+                                groupId: job.groupId
+                            )
+                        }
+                        
+                        // Still refresh user data even if we couldn't fetch the result
+                        if let authVM = authViewModel {
+                            authVM.forceRefreshCurrentUser()
+                        }
                     }
                 }
             }
         } else {
             toast.success("Video processed successfully!")
+            
+            // Send notification even without result details
+            let ideaTitle = "New Idea"
+            if notificationsEnabled {
+                notificationManager.scheduleIdeaCompletedNotification(
+                    ideaId: UUID().uuidString,
+                    ideaTitle: ideaTitle,
+                    groupId: job.groupId
+                )
+            }
+            
+            // Refresh user data for potential level updates
+            if let authVM = authViewModel {
+                authVM.forceRefreshCurrentUser()
+            }
         }
     }
     
@@ -379,10 +454,12 @@ class ProcessingManager: ObservableObject {
 struct ProcessingRequest: Codable {
     let url: String
     let userId: String
+    let isPublic: Bool
     
     enum CodingKeys: String, CodingKey {
         case url
         case userId = "user_id"
+        case isPublic = "public"
     }
 }
 
@@ -390,11 +467,13 @@ struct GroupProcessingRequest: Codable {
     let url: String
     let userId: String
     let groupId: String
+    let isPublic: Bool
     
     enum CodingKeys: String, CodingKey {
         case url
         case userId = "user_id"
         case groupId = "group_id"
+        case isPublic = "public"
     }
 }
 

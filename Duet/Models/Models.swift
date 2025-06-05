@@ -70,6 +70,16 @@ struct ActivityHistoryResponse: Decodable {
     let activities: [ActivitySummary]
 }
 
+struct UserLevelResponse: Codable {
+    let playerLevel: String
+    let ideaCount: Int
+    
+    private enum CodingKeys: String, CodingKey {
+        case playerLevel = "player_level"
+        case ideaCount = "idea_count"
+    }
+}
+
 struct PaginatedFeedResponse: Decodable {
     let items: [DateIdeaResponse]
     let total: Int

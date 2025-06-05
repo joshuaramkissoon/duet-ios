@@ -37,6 +37,8 @@ struct CreditTransaction: Codable, Identifiable {
             return "Purchased"
         case "bonus":
             return "Bonus"
+        case "level_up_bonus":
+            return "Level Up Bonus"
         case "refund":
             return "Refunded"
         default:
@@ -260,5 +262,16 @@ struct StripeCheckoutResponse: Codable {
     enum CodingKeys: String, CodingKey {
         case checkoutUrl = "checkout_url"
         case sessionId = "session_id"
+    }
+}
+
+// MARK: - Welcome Credits Response
+struct WelcomeCreditsResponse: Codable {
+    let welcomeCredits: Int
+    let levelUpBonus: Int
+    
+    enum CodingKeys: String, CodingKey {
+        case welcomeCredits = "welcome_credits"
+        case levelUpBonus = "level_up_bonus"
     }
 } 

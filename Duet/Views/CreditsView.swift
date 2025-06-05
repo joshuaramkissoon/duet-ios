@@ -10,6 +10,7 @@ import UIKit
 
 struct CreditsView: View {
     @StateObject private var creditService = CreditService.shared
+    @StateObject private var welcomeCreditService = WelcomeCreditService.shared
     @EnvironmentObject private var creditUIManager: CreditUIManager
     @State private var creditPackages: [CreditPackage] = []
     @State private var currency: String = "gbp"
@@ -69,7 +70,10 @@ struct CreditsView: View {
         VStack(spacing: 16) {
             // Credit icon and balance
             VStack(spacing: 8) {
-                CreditIcon(type: .creditBalance, size: .title2, frameSize: 48)
+                Image("duet-star")
+                    .resizable()
+                    .scaledToFit()
+                    .padding(.horizontal, 40)
                 
                 Text("\(creditService.currentCredits)")
                     .font(.system(size: 48, weight: .bold, design: .monospaced))
@@ -153,13 +157,13 @@ struct CreditsView: View {
                 creditInfoRow(
                     iconType: .bonus,
                     title: "Welcome Bonus",
-                    description: "+10 free credits when you join"
+                    description: "+\(welcomeCreditService.welcomeCredits) free credits when you join"
                 )
                 
                 creditInfoRow(
                     iconType: .levelUp,
                     title: "Level Up Bonus",
-                    description: "+20 credits when you level up"
+                    description: "+\(welcomeCreditService.levelUpBonus) credits when you level up"
                 )
 
                 creditInfoRow(
@@ -719,4 +723,5 @@ struct CreditPackageCard: View {
     TransactionRow(transaction: CreditTransaction(id: 0, amount: 12, transactionType: "purchase", stripePaymentIntentId: nil, description: "Purchased credits", createdAt: "Now"))
     TransactionRow(transaction: CreditTransaction(id: 0, amount: -1, transactionType: "usage", stripePaymentIntentId: nil, description: "Process video", createdAt: "Now"))
     TransactionRow(transaction: CreditTransaction(id: 0, amount: 100, transactionType: "bonus", stripePaymentIntentId: nil, description: "Friendly bonus", createdAt: "Now"))
+    TransactionRow(transaction: CreditTransaction(id: 0, amount: 20, transactionType: "level_up_bonus", stripePaymentIntentId: nil, description: "Reached Creative Flame level!", createdAt: "Now"))
 }

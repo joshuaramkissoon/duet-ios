@@ -126,6 +126,28 @@ class AuthenticationViewModel: ObservableObject {
         catch { errorMessage = error.localizedDescription }
     }
     
+    func deleteAccount() async throws {
+        guard let currentUser = Auth.auth().currentUser else {
+            throw NSError(domain: "AuthError", code: -1, userInfo: [NSLocalizedDescriptionKey: "No authenticated user found"])
+        }
+        
+        // Delete the Firebase user account
+        try await currentUser.delete()
+        
+        // Clear all local data
+        SharedUserManager.shared.clearCurrentUser()
+        UserCache.shared.clearAll()
+        
+        // Reset the authentication state
+        await MainActor.run {
+            self.user = nil
+            self.currentUser = nil
+            self.state = .unauthenticated
+        }
+        
+        print("🟢 Successfully deleted user account and cleared all data")
+    }
+    
     /// Refresh current user data from network (useful after profile updates)
     func refreshCurrentUser() {
         guard let firebaseUser = user else { return }
@@ -145,6 +167,33 @@ class AuthenticationViewModel: ObservableObject {
                 }
             }
         }
+    }
+    
+    /// Force refresh current user data from network, bypassing cache completely
+    func forceRefreshCurrentUser() {
+        guard let firebaseUser = user else { return }
+        
+        // Use direct getUserById endpoint to always fetch fresh data from network
+        NetworkClient.shared.getUserById(firebaseUser.uid) { [weak self] result in
+            DispatchQueue.main.async {
+                switch result {
+                case .success(let user):
+                    self?.currentUser = user
+                    // Cache is already updated in NetworkClient.getUserById
+                    print("🟢 Force refreshed current user data: \(user.displayName) - Level: \(user.playerLevel ?? "none")")
+                    
+                case .failure(let error):
+                    print("❌ Failed to force refresh current user info: \(error)")
+                }
+            }
+        }
+    }
+    
+    /// Update current user object directly (useful after successful profile updates)
+    func updateCurrentUser(_ updatedUser: User) {
+        self.currentUser = updatedUser
+        UserCache.shared.cacheUser(updatedUser) // Update cache with new data
+        print("🟢 Updated current user: \(updatedUser.displayName)")
     }
     
     func signInAnonymously() {

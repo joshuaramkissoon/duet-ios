@@ -54,30 +54,26 @@ struct ToastView: View {
     let state: ToastState
     
     var body: some View {
-        VStack {
-            Spacer()
-            HStack(spacing: 8) {
-
-                // Either an SF Symbol or a `ProgressView`
-                if let icon = state.iconName {
-                    Image(systemName: icon)
-                        .foregroundColor(state.iconColor)
-                        .font(.headline)
-                } else {
-                    ProgressView()
-                        .progressViewStyle(.circular)
-                        .tint(state.iconColor)
-                }
-
-                Text(state.message)
-                    .font(.subheadline.weight(.medium))
-                    .foregroundColor(.white)
+        HStack(spacing: 8) {
+            // Either an SF Symbol or a `ProgressView`
+            if let icon = state.iconName {
+                Image(systemName: icon)
+                    .foregroundColor(state.iconColor)
+                    .font(.headline)
+            } else {
+                ProgressView()
+                    .progressViewStyle(.circular)
+                    .tint(state.iconColor)
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 10)
-            .background(Color.midnightSlate)
-            .clipShape(Capsule())
+
+            Text(state.message)
+                .font(.subheadline.weight(.medium))
+                .foregroundColor(.white)
         }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .background(Color.midnightSlate)
+        .clipShape(Capsule())
     }
 }
 

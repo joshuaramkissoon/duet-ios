@@ -20,6 +20,16 @@ struct DuetApp: App {
     @StateObject private var exploreVM = ExploreViewModel()
     @StateObject private var processingManager = ProcessingManager(toast: ToastManager())
     @StateObject private var creditUIManager = CreditUIManager()
+    @StateObject private var myLibraryVM = MyLibraryViewModel()
+    @StateObject private var notificationManager = NotificationManager.shared
+    @StateObject private var navigationManager = NavigationManager.shared
+    
+    // Deep link state for notifications
+    @State private var notificationDeepLinkTrigger = false
+    @State private var pendingNotificationData: [String: Any]?
+    
+    // Scene phase for app state detection
+    @Environment(\.scenePhase) private var scenePhase
 
     init() {
         FirebaseApp.configure()
@@ -27,6 +37,31 @@ struct DuetApp: App {
         
         // Clear user cache on app startup to ensure fresh data (especially profile images)
         UserCache.shared.clearCacheOnAppStartup()
+        
+        // Set up notification observer
+        setupNotificationObserver()
+    }
+    
+    private func setupNotificationObserver() {
+        NotificationCenter.default.addObserver(
+            forName: .openCompletedIdea,
+            object: nil,
+            queue: .main
+        ) { notification in
+            // Cast the userInfo properly
+            if let userInfo = notification.userInfo {
+                let stringDict = Dictionary(uniqueKeysWithValues: 
+                    userInfo.compactMap { key, value in
+                        if let stringKey = key as? String {
+                            return (stringKey, value)
+                        }
+                        return nil
+                    }
+                )
+                pendingNotificationData = stringDict
+                notificationDeepLinkTrigger.toggle()
+            }
+        }
     }
     
     private func configureAudioSession() {
@@ -50,13 +85,48 @@ struct DuetApp: App {
                     .environmentObject(exploreVM)
                     .environmentObject(processingManager)
                     .environmentObject(creditUIManager)
+                    .environmentObject(myLibraryVM)
+                    .environmentObject(notificationManager)
+                    .environmentObject(navigationManager)
                     .onOpenURL(perform: handleInviteURL(_:))
                     .onAppear {
                         // Configure ProcessingManager with proper references
                         processingManager.updateToast(toastManager)
+                        processingManager.updateAuthViewModel(authVM)
+                        processingManager.updateMyLibraryViewModel(myLibraryVM)
                         
                         // Configure CreditService with UI manager
                         CreditService.shared.configure(with: creditUIManager)
+                        
+                        // Initialize WelcomeCreditService to fetch welcome credits once at startup
+                        Task {
+                            await WelcomeCreditService.shared.fetchWelcomeCreditsIfNeeded()
+                        }
+                        
+                        // Request notification permissions
+                        Task {
+                            await notificationManager.requestNotificationPermission()
+                        }
+                        
+                        // Force refresh current user data to ensure we have latest player_level
+                        if authVM.state == .authenticated {
+                            authVM.forceRefreshCurrentUser()
+                            
+                            // Initialize MyLibraryViewModel with current user
+                            if let userId = authVM.user?.uid {
+                                myLibraryVM.setAuthorId(userId)
+                                myLibraryVM.backgroundLoadUserIdeas()
+                            }
+                        }
+                    }
+                    .onChange(of: notificationDeepLinkTrigger) { _ in
+                        if let deepLinkData = pendingNotificationData {
+                            handleNotificationDeepLink(deepLinkData)
+                            pendingNotificationData = nil
+                        }
+                    }
+                    .onChange(of: scenePhase) { newPhase in
+                        handleScenePhaseChange(newPhase)
                     }
                 
                 if let result = groupsVM.joinResult {
@@ -118,6 +188,11 @@ struct DuetApp: App {
             await CreditService.shared.refreshCreditData()
         }
         
+        // Force refresh current user data to ensure latest credits and player level
+        if authVM.state == .authenticated {
+            authVM.forceRefreshCurrentUser()
+        }
+        
         // Hide any open credit-related sheets
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
             creditUIManager.dismissAllSheets()
@@ -127,5 +202,51 @@ struct DuetApp: App {
     private func handlePaymentCancel() {
         // Show informational toast (not an error since user chose to cancel)
         toastManager.error("Payment cancelled. You can try again anytime.")
+    }
+    
+    // MARK: - Scene Phase Handling
+    
+    private func handleScenePhaseChange(_ phase: ScenePhase) {
+        switch phase {
+        case .active:
+            // App became active - clear any delivered notifications
+            notificationManager.clearAllDeliveredNotifications()
+            notificationManager.clearBadge()
+            print("📱 App became active - cleared notifications")
+            
+        case .inactive:
+            print("📱 App became inactive")
+            
+        case .background:
+            print("📱 App entered background")
+            
+        @unknown default:
+            break
+        }
+    }
+    
+    // MARK: - Notification Deep Linking
+    
+    private func handleNotificationDeepLink(_ userInfo: [String: Any]) {
+        guard authVM.state == .authenticated,
+              let ideaId = userInfo["ideaId"] as? String else {
+            print("❌ Cannot handle notification deep link - not authenticated or missing ideaId")
+            return
+        }
+        
+        let groupId = userInfo["groupId"] as? String
+        
+        // Clear any delivered notifications since user is now in the app
+        notificationManager.clearAllDeliveredNotifications()
+        
+        // Use NavigationManager to handle the deep link
+        navigationManager.navigateToIdea(ideaId: ideaId, groupId: groupId)
+        
+        // Show success toast
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            toastManager.success("✨ Opening your completed idea!")
+        }
+        
+        print("🧭 DuetApp: Initiated navigation to idea \(ideaId)")
     }
 }

@@ -9,11 +9,42 @@ import SwiftUI
 import AVKit
 
 struct MyLibraryView: View {
+    // We embed an inner NavigationStack to decouple this view's navigation
+    // from the parent stack (Profile -> MyLibrary). This prevents the
+    // outer NavigationLink anchor from being destroyed when the list
+    // changes – which was causing the entire stack (and any presented
+    // sheets) to collapse.
     @EnvironmentObject private var authVM: AuthenticationViewModel
+    @EnvironmentObject private var toast: ToastManager
+    @Environment(\.dismiss) private var dismiss
     @ObservedObject var viewModel: MyLibraryViewModel
-    @State private var selectedActivity: DateIdeaResponse?
     @FocusState private var isSearchFocused: Bool
     @State private var keyboardHeight: CGFloat = 0
+    @State private var selectedTags: Set<String> = []
+    @State private var isTagFilterExpanded = false
+    @State private var ideaToDelete: DateIdeaResponse?
+    @State private var showDeleteConfirmation = false
+    
+    // Computed property to get all unique tags from current display items
+    // This automatically switches between all ideas and search results based on search state
+    private var availableTags: [Tag] {
+        let allTags = viewModel.displayItems.flatMap { $0.summary.tags }
+        let uniqueTags = Dictionary(grouping: allTags, by: { $0.title })
+            .compactMapValues { $0.first }
+            .values
+        return Array(uniqueTags).sorted { $0.title < $1.title }
+    }
+    
+    // Filtered ideas based on selected tags
+    private var filteredIdeas: [DateIdeaResponse] {
+        if selectedTags.isEmpty {
+            return viewModel.displayItems
+        }
+        return viewModel.displayItems.filter { idea in
+            let ideaTags = Set(idea.summary.tags.map { $0.title })
+            return !selectedTags.isDisjoint(with: ideaTags)
+        }
+    }
 
     // Default initializer for backwards compatibility
     init() {
@@ -26,6 +57,84 @@ struct MyLibraryView: View {
     }
 
     var body: some View {
+        NavigationStack {
+            libraryContent
+                .navigationTitle("My Library")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .navigationBarLeading) {
+                        Button(action: {
+                            dismiss()
+                        }) {
+                            HStack(spacing: 4) {
+                                Image(systemName: "chevron.left")
+                                    .font(.title3)
+                                    .fontWeight(.medium)
+                                Text("Profile")
+                            }
+                            .foregroundColor(.appPrimary)
+                        }
+                    }
+                    
+                    ToolbarItem(placement: .navigationBarTrailing) {
+                        if !viewModel.isSearchFieldVisible {
+                            Button(action: {
+                                withAnimation(.easeInOut(duration: 0.3)) {
+                                    viewModel.showSearchField()
+                                }
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                                    isSearchFocused = true
+                                }
+                            }) {
+                                Image(systemName: "magnifyingglass")
+                                    .font(.title2)
+                                    .foregroundColor(.appPrimary)
+                            }
+                        }
+                    }
+                }
+        }
+        .navigationBarHidden(true)  // Hide outer nav bar to prevent double bars
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { notification in
+            if let keyboardFrame = notification.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? NSValue {
+                keyboardHeight = keyboardFrame.cgRectValue.height
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
+            keyboardHeight = 0
+        }
+        .onChange(of: viewModel.isSearchActive) { _, isSearchActive in
+            // Reset selected tags when search state changes (both starting and stopping search)
+            selectedTags.removeAll()
+            if isSearchActive {
+                isTagFilterExpanded = false // Collapse the filter when starting a search
+            }
+        }
+        .onChange(of: viewModel.query) { _, newQuery in
+            // Reset selected tags when search query changes (but not when cleared)
+            if !newQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !selectedTags.isEmpty {
+                selectedTags.removeAll()
+            }
+        }
+        .onAppear {
+            if let userId = authVM.user?.uid {
+                viewModel.setAuthorId(userId)
+                
+                // If we have no data, do regular loading. Otherwise, do a simple background refresh like other views
+                // viewModel.backgroundLoadUserIdeas()
+                if viewModel.userIdeas.isEmpty {
+                    viewModel.loadUserIdeas()
+                } else {
+                    // Simple background refresh without timing restrictions - same as ExploreView approach
+                    // viewModel.backgroundLoadUserIdeas()
+                }
+            }
+        }
+    }
+
+    // MARK: - Extracted Content
+    @ViewBuilder
+    private var libraryContent: some View {
         ZStack {
             Color.appBackground
                 .ignoresSafeArea()
@@ -46,31 +155,6 @@ struct MyLibraryView: View {
                 mainContent
             }
         }
-        .sheet(item: $selectedActivity) { activity in
-            NavigationView {
-                ActivityDetailLoader(activityId: activity.id)
-            }
-        }
-        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { notification in
-            if let keyboardFrame = notification.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? NSValue {
-                keyboardHeight = keyboardFrame.cgRectValue.height
-            }
-        }
-        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
-            keyboardHeight = 0
-        }
-        .onAppear {
-            if let userId = authVM.user?.uid {
-                viewModel.setAuthorId(userId)
-                
-                // If we have no data, do regular loading. Otherwise, silent background refresh
-                if viewModel.userIdeas.isEmpty {
-                    viewModel.loadUserIdeas()
-                } else {
-                    viewModel.backgroundLoadUserIdeas()
-                }
-            }
-        }
     }
     
     @ViewBuilder
@@ -83,6 +167,18 @@ struct MyLibraryView: View {
                         searchSection
                             .transition(.move(edge: .top).combined(with: .opacity))
                             .id("searchSection")
+                    }
+                    
+                    // Tag Filter Section (always visible when there are ideas)
+                    if !viewModel.displayItems.isEmpty && !availableTags.isEmpty {
+                        TagFilterView(
+                            availableTags: availableTags,
+                            selectedTags: $selectedTags,
+                            isExpanded: $isTagFilterExpanded,
+                            displayItems: viewModel.displayItems
+                        )
+                        .padding(.horizontal, 20)
+                        .transition(.opacity.combined(with: .scale(scale: 0.95)))
                     }
                     
                     // Content
@@ -111,26 +207,6 @@ struct MyLibraryView: View {
                 if isVisible {
                     withAnimation(.easeInOut(duration: 0.3)) {
                         proxy.scrollTo("searchSection", anchor: .top)
-                    }
-                }
-            }
-        }
-        .navigationTitle("My Library")
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .navigationBarTrailing) {
-                if !viewModel.isSearchFieldVisible {
-                    Button(action: {
-                        withAnimation(.easeInOut(duration: 0.3)) {
-                            viewModel.showSearchField()
-                        }
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
-                            isSearchFocused = true
-                        }
-                    }) {
-                        Image(systemName: "magnifyingglass")
-                            .font(.title2)
-                            .foregroundColor(.appPrimary)
                     }
                 }
             }
@@ -196,8 +272,20 @@ struct MyLibraryView: View {
                     presetQueries: viewModel.presetQueries,
                     onQueryTap: { query in
                         isSearchFocused = false
+                        // Extract text without emoji - strip common emoji patterns
+                        let cleanQuery = query
+                            .replacingOccurrences(of: "🍷 ", with: "")
+                            .replacingOccurrences(of: "🏃‍♂️ ", with: "")
+                            .replacingOccurrences(of: "🏠 ", with: "")
+                            .replacingOccurrences(of: "✈️ ", with: "")
+                            .replacingOccurrences(of: "🎨 ", with: "")
+                            .replacingOccurrences(of: "💪 ", with: "")
+                            .trimmingCharacters(in: .whitespacesAndNewlines)
+                        
+                        // Set the clean query and perform search
+                        viewModel.query = cleanQuery
                         withAnimation(.easeInOut(duration: 0.2)) {
-                            viewModel.performSearch(with: query)
+                            viewModel.performSearch(with: cleanQuery)
                         }
                     }
                 )
@@ -225,15 +313,21 @@ struct MyLibraryView: View {
     @ViewBuilder
     private var contentItems: some View {
         LazyVStack(spacing: 16) {
-            ForEach(viewModel.displayItems, id: \.id) { activity in
-                ExploreCard(activity: activity, selectedActivity: $selectedActivity)
-                    .onAppear {
-                        // Load next page when approaching the end (for user ideas only)
-                        if !viewModel.isSearchActive && 
-                           activity.id == viewModel.userIdeas.last?.id {
-                            viewModel.loadNextUserIdeasPage()
-                        }
+            ForEach(filteredIdeas, id: \.id) { activity in
+                ActivityHistoryCard(
+                    activity: activity,
+                    onDelete: { 
+                        ideaToDelete = activity
+                        showDeleteConfirmation = true
                     }
+                )
+                .onAppear {
+                    // Load next page when approaching the end (for user ideas only)
+                    if !viewModel.isSearchActive && 
+                       activity.id == viewModel.userIdeas.last?.id {
+                        viewModel.loadNextUserIdeasPage()
+                    }
+                }
             }
             
             // Loading indicator for pagination
@@ -244,6 +338,68 @@ struct MyLibraryView: View {
         }
         .padding(.horizontal, 20)
         .padding(.bottom, 20)
+        .confirmationDialog(
+            "Delete Idea",
+            isPresented: $showDeleteConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Delete", role: .destructive) {
+                if let idea = ideaToDelete {
+                    Task {
+                        await deleteIdea(idea)
+                    }
+                }
+            }
+            Button("Cancel", role: .cancel) {
+                ideaToDelete = nil
+            }
+        } message: {
+            Text("Are you sure you want to delete this idea? This action cannot be undone.")
+        }
+    }
+    
+    // MARK: - Delete Functionality
+    
+    private func deleteIdea(_ activity: DateIdeaResponse) async {
+        do {
+            let endpoint = NetworkClient.shared.baseUrl + "/ideas/\(activity.id)"
+            let _: EmptyResponse = try await NetworkClient.shared.deleteJSON(url: endpoint)
+            
+            await MainActor.run {
+                // Remove from local state
+                viewModel.userIdeas.removeAll { $0.id == activity.id }
+                
+                // Also remove from search results if in search mode
+                if viewModel.isSearchActive {
+                    viewModel.searchResults.removeAll { $0.id == activity.id }
+                }
+                
+                // Clear the delete state
+                ideaToDelete = nil
+                
+                // Show success feedback
+                HapticFeedbacks.success()
+                toast.success("Idea deleted successfully")
+                print("🗑️ Deleted idea: \(activity.id)")
+                
+                // Notify other parts of the app that an idea was deleted
+                NotificationCenter.default.post(
+                    name: .ideaDeleted,
+                    object: nil,
+                    userInfo: ["ideaId": activity.id]
+                )
+            }
+        } catch {
+            await MainActor.run {
+                // Clear the delete state even on error
+                ideaToDelete = nil
+                
+                // Show error feedback
+                HapticFeedbacks.error()
+                toast.error("Failed to delete idea")
+                print("❌ Failed to delete idea \(activity.id): \(error.localizedDescription)")
+            }
+        }
     }
 }
 
@@ -310,8 +466,11 @@ struct LoadingLibraryView: View {
 struct EmptyLibraryView: View {
     var body: some View {
         VStack(spacing: 16) {
-            Image(systemName: "folder")
-                .font(.system(size: 48))
+            Image("duet-group")
+                .resizable()
+                .scaledToFit()
+                .padding(.leading, 60)
+                .padding(.trailing, 60)
                 .foregroundColor(.appPrimary)
             
             Text("No ideas yet")
@@ -326,6 +485,213 @@ struct EmptyLibraryView: View {
         }
         .padding(.top, 60)
     }
+}
+
+// MARK: - Tag Filter View
+struct TagFilterView: View {
+    let availableTags: [Tag]
+    @Binding var selectedTags: Set<String>
+    @Binding var isExpanded: Bool
+    let displayItems: [DateIdeaResponse]
+    
+    private var filteredCount: Int {
+        if selectedTags.isEmpty {
+            return displayItems.count
+        }
+        return displayItems.filter { idea in
+            let ideaTags = Set(idea.summary.tags.map { $0.title })
+            return !selectedTags.isDisjoint(with: ideaTags)
+        }.count
+    }
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            // Header
+            HStack {
+                Text("Filter by Tags")
+                    .font(.headline)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.primary)
+                
+                Spacer()
+                
+                // Show filtered count when tags are selected
+                if !selectedTags.isEmpty {
+                    Text("\(filteredCount) ideas")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .fill(Color.appPrimary.opacity(0.1))
+                        )
+                }
+                
+                // Clear All button
+                if !selectedTags.isEmpty {
+                    Button("Clear") {
+                        HapticFeedbacks.soft()
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            selectedTags.removeAll()
+                        }
+                    }
+                    .font(.caption)
+                    .foregroundColor(.appPrimary)
+                }
+                
+                // Expand/Collapse button
+                Button(action: {
+                    HapticFeedbacks.soft()
+                    withAnimation(.easeInOut(duration: 0.3)) {
+                        isExpanded.toggle()
+                    }
+                }) {
+                    Image(systemName: "chevron.down")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .rotationEffect(.degrees(isExpanded ? 180 : 0))
+                }
+            }
+            .padding(.horizontal, 4)
+            
+            // Tags display
+            if isExpanded {
+                // Expanded: Show all tags in a flexible grid that prevents truncation
+                LazyVGrid(columns: [
+                    GridItem(.adaptive(minimum: 100, maximum: 200), spacing: 8)
+                ], spacing: 8) {
+                    ForEach(availableTags, id: \.title) { tag in
+                        TagPillButton(
+                            tag: tag,
+                            isSelected: selectedTags.contains(tag.title),
+                            onTap: {
+                                HapticFeedbacks.soft()
+                                withAnimation(.easeInOut(duration: 0.2)) {
+                                    if selectedTags.contains(tag.title) {
+                                        selectedTags.remove(tag.title)
+                                    } else {
+                                        selectedTags.insert(tag.title)
+                                    }
+                                }
+                            }
+                        )
+                    }
+                }
+            } else {
+                // Collapsed: Show tags in horizontal scroll with proper bleeding
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(availableTags.prefix(20), id: \.title) { tag in
+                            TagPillButton(
+                                tag: tag,
+                                isSelected: selectedTags.contains(tag.title),
+                                onTap: {
+                                    HapticFeedbacks.soft()
+                                    withAnimation(.easeInOut(duration: 0.2)) {
+                                        if selectedTags.contains(tag.title) {
+                                            selectedTags.remove(tag.title)
+                                        } else {
+                                            selectedTags.insert(tag.title)
+                                        }
+                                    }
+                                }
+                            )
+                        }
+                        
+                        // Show more indicator if there are more tags
+                        if availableTags.count > 20 {
+                            Button(action: {
+                                HapticFeedbacks.soft()
+                                withAnimation(.easeInOut(duration: 0.3)) {
+                                    isExpanded = true
+                                }
+                            }) {
+                                Text("+\(availableTags.count - 20)")
+                                    .font(.caption)
+                                    .fontWeight(.medium)
+                                    .foregroundColor(.appPrimary)
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 8)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 20, style: .continuous)
+                                            .fill(Color.appPrimary.opacity(0.1))
+                                            .overlay(
+                                                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                                                    .stroke(Color.appPrimary.opacity(0.3), lineWidth: 1)
+                                            )
+                                    )
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.leading, 16) // Start offset for bleeding effect
+                    .padding(.trailing, 16)
+                }
+                .padding(.leading, -16) // Allow bleeding from leading edge
+                .padding(.trailing, -16) // Allow bleeding from trailing edge
+            }
+        }
+        .padding(.vertical, 16)
+        .padding(.horizontal, 16)
+        .background(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(Color(.systemBackground))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .stroke(Color(.systemGray5), lineWidth: 0.5)
+                )
+        )
+        .shadow(
+            color: Color.black.opacity(0.06),
+            radius: 6,
+            x: 0,
+            y: 3
+        )
+    }
+}
+
+// MARK: - Tag Pill Button
+struct TagPillButton: View {
+    let tag: Tag
+    let isSelected: Bool
+    let onTap: () -> Void
+    
+    var body: some View {
+        Button(action: onTap) {
+            HStack(spacing: 4) {
+                if UIImage(systemName: tag.icon) != nil {
+                    Image(systemName: tag.icon)
+                        .font(.caption)
+                }
+                Text(tag.title)
+                    .font(.caption)
+                    .fontWeight(.medium)
+                    .lineLimit(1)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .frame(minHeight: 32) // Use minHeight instead of fixed height
+            .background(
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .fill(isSelected ? Color.appPrimary : Color.gray.opacity(0.1))
+            )
+            .foregroundColor(isSelected ? .white : .gray)
+            .overlay(
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .stroke(isSelected ? Color.appPrimary : Color.clear, lineWidth: 1)
+            )
+            .scaleEffect(isSelected ? 1.05 : 1.0)
+        }
+        .buttonStyle(.plain)
+        .frame(height: 36) // Provide enough space for scaling (32 * 1.05 ≈ 34)
+    }
+}
+
+// MARK: - Response Models
+
+struct EmptyResponse: Codable {
+    // Empty struct for endpoints that return no content
 }
 
 #Preview {

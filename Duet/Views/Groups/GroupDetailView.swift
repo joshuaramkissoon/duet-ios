@@ -547,12 +547,12 @@ final class MockGroupDetailViewModel: GroupDetailViewModel {
             description: "",
             thumbnail_b64: "Stargazing with picnic vibes",
             thumbnail_url: "",
-            video_url: "",
+            video_url: nil,
             videoMetadata: nil,
             original_source_url: nil,
             user_id: nil,
             user_name: nil,
-            created_at: nil
+            created_at: nil, isPublic: false
         )
         self.ideas = [sampleIdea.toGroupIdea()]
         self.inviteLink = URL(string: "duet://join?groupId=mock-group")

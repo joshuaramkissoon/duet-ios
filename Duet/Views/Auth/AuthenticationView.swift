@@ -60,7 +60,7 @@ struct AuthenticationView: View {
     private var loginForm: some View {
         VStack(spacing: 20) {
             Spacer()
-            Image("duet")
+            Image("duet-landing")
               .resizable()
               .scaledToFit()
               .clipShape(

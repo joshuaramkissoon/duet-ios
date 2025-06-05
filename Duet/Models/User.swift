@@ -17,11 +17,11 @@ enum PlayerLevel: CaseIterable {
     
     init(ideaCount: Int) {
         switch ideaCount {
-        case 0...15:
+        case 0..<15:
             self = .ideaSpark
-        case 16...40:
+        case 16..<40:
             self = .ideaIgniter
-        case 41...90:
+        case 41..<90:
             self = .creativeFlame
         default:
             self = .innovationStar
@@ -61,26 +61,26 @@ enum PlayerLevel: CaseIterable {
     var backgroundColor: Color {
         switch self {
         case .ideaSpark:
-            return Color.yellow.opacity(0.15)
+            return Color(red: 1.0, green: 0.95, blue: 0.8).opacity(0.3) // Soft yellow cream
         case .ideaIgniter:
-            return Color.blue.opacity(0.15)
+            return Color(red: 0.8, green: 0.9, blue: 1.0).opacity(0.3) // Sky blue
         case .creativeFlame:
-            return Color.orange.opacity(0.15)
+            return Color(red: 1.0, green: 0.75, blue: 0.6).opacity(0.3) // Warm coral
         case .innovationStar:
-            return Color.purple.opacity(0.15)
+            return Color(red: 0.9, green: 0.85, blue: 1.0).opacity(0.3) // Lavender mist
         }
     }
-    
+
     var foregroundColor: Color {
         switch self {
         case .ideaSpark:
-            return Color.yellow.opacity(0.8)
+            return Color(red: 0.9, green: 0.7, blue: 0.2) // Bright golden
         case .ideaIgniter:
-            return Color.blue.opacity(0.8)
+            return Color(red: 0.2, green: 0.5, blue: 0.8) // Deep blue
         case .creativeFlame:
-            return Color.orange.opacity(0.8)
+            return Color(red: 0.9, green: 0.4, blue: 0.2) // Vibrant orange
         case .innovationStar:
-            return Color.purple.opacity(0.8)
+            return Color(red: 0.6, green: 0.4, blue: 0.8) // Rich purple
         }
     }
 }

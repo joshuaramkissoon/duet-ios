@@ -15,7 +15,7 @@ struct URLInputView: View {
     
     var body: some View {
         VStack(spacing: 24) {
-            Image("duet")
+            Image("duet-landing")
               .resizable()
               .scaledToFit()
               .clipShape(

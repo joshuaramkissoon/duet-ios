@@ -44,25 +44,9 @@ enum NetworkError: Error {
 class NetworkClient: NSObject {
     static let shared = NetworkClient()
    let baseUrl = "https://duet-backend-490xp.kinsta.app" // Made public for ProcessingManager
-    // let baseUrl = "https://8dca7b206740.ngrok.app"
+    // let baseUrl = "https://121c3bb08c2d.ngrok.app"
     
     private override init() {}
-    
-    private var pendingCompletions: [Int: (Result<DateIdeaResponse, NetworkError>) -> Void] = [:]
-    
-    private lazy var backgroundSession: URLSession = {
-        let config = URLSessionConfiguration.background(withIdentifier: "com.duet.videosummarization")
-        config.sessionSendsLaunchEvents = true
-        config.timeoutIntervalForRequest = 300 // 5 minutes
-        config.timeoutIntervalForResource = 600 // 10 minutes
-        config.isDiscretionary = false // Don't wait for optimal conditions
-        config.allowsCellularAccess = true
-        config.waitsForConnectivity = true // Wait for network connectivity if needed
-        config.shouldUseExtendedBackgroundIdleMode = true // Allow longer background processing
-        return URLSession(configuration: config, delegate: self, delegateQueue: nil)
-    }()
-    
-    private var receivedDataForTasks: [Int: Data] = [:]
     
     // MARK: - Generic Request Methods
     
@@ -152,6 +136,94 @@ class NetworkClient: NSObject {
         }
         
         print("📡 Async POST: \(requestUrl)")
+        
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            
+            guard let httpResponse = response as? HTTPURLResponse else {
+                throw NetworkError.invalidResponse
+            }
+            
+            guard 200...299 ~= httpResponse.statusCode else {
+                throw NetworkError.unexpectedStatusCode(httpResponse.statusCode)
+            }
+            
+            let decodedObject: U = try decodeFromJSON(data: data)
+            return decodedObject
+        } catch let error as NetworkError {
+            throw error
+        } catch {
+            throw NetworkError.unknown(error.localizedDescription)
+        }
+    }
+    
+    // New async patchJSON method for updating ideas
+    func patchJSON<T: Encodable, U: Decodable>(url: String, body: T) async throws -> U {
+        guard let requestUrl = URL(string: url) else {
+            throw NetworkError.invalidUrl
+        }
+        
+        var request = URLRequest(url: requestUrl)
+        request.httpMethod = "PATCH"
+        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
+        
+        // Add Firebase auth header for protected endpoints
+        guard let currentUser = Auth.auth().currentUser else {
+            throw NetworkError.unknown("User not authenticated")
+        }
+        
+        let idToken = try await currentUser.getIDToken()
+        request.addValue("Bearer \(idToken)", forHTTPHeaderField: "Authorization")
+        
+        do {
+            let encoder = JSONEncoder()
+            encoder.keyEncodingStrategy = .convertToSnakeCase
+            request.httpBody = try encoder.encode(body)
+        } catch {
+            throw NetworkError.encodingError
+        }
+        
+        print("📡 Async PATCH: \(requestUrl)")
+        
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            
+            guard let httpResponse = response as? HTTPURLResponse else {
+                throw NetworkError.invalidResponse
+            }
+            
+            guard 200...299 ~= httpResponse.statusCode else {
+                throw NetworkError.unexpectedStatusCode(httpResponse.statusCode)
+            }
+            
+            let decodedObject: U = try decodeFromJSON(data: data)
+            return decodedObject
+        } catch let error as NetworkError {
+            throw error
+        } catch {
+            throw NetworkError.unknown(error.localizedDescription)
+        }
+    }
+    
+    // New async deleteJSON method for deleting ideas
+    func deleteJSON<U: Decodable>(url: String) async throws -> U {
+        guard let requestUrl = URL(string: url) else {
+            throw NetworkError.invalidUrl
+        }
+        
+        var request = URLRequest(url: requestUrl)
+        request.httpMethod = "DELETE"
+        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
+        
+        // Add Firebase auth header for protected endpoints
+        guard let currentUser = Auth.auth().currentUser else {
+            throw NetworkError.unknown("User not authenticated")
+        }
+        
+        let idToken = try await currentUser.getIDToken()
+        request.addValue("Bearer \(idToken)", forHTTPHeaderField: "Authorization")
+        
+        print("📡 Async DELETE: \(requestUrl)")
         
         do {
             let (data, response) = try await URLSession.shared.data(for: request)
@@ -354,14 +426,30 @@ class NetworkClient: NSObject {
                     return
                 }
                 
-                print("📡 Background POST with Auth: \(requestUrl)")
+                print("📡 Regular POST with Auth: \(requestUrl)")
                 
-                let task = backgroundSession.dataTask(with: request)
+                // Use regular URLSession instead of background session
+                let (data, response) = try await URLSession.shared.data(for: request)
                 
-                // Store completion handler with task identifier
-                pendingCompletions[task.taskIdentifier] = completion
+                guard let httpResponse = response as? HTTPURLResponse else {
+                    completion(.failure(.invalidResponse))
+                    return
+                }
                 
-                task.resume()
+                if httpResponse.statusCode != 200 {
+                    print("⚠️ HTTP Status Code: \(httpResponse.statusCode)")
+                    completion(.failure(.unexpectedStatusCode(httpResponse.statusCode)))
+                    return
+                }
+                
+                do {
+                    let decodedObject: DateIdeaResponse = try self.decodeFromJSON(data: data)
+                    print("✅ Successfully decoded response")
+                    completion(.success(decodedObject))
+                } catch {
+                    print("❌ Decoding error: \(error)")
+                    completion(.failure(.decodingError))
+                }
                 
             } catch {
                 completion(.failure(.unknown("Failed to get auth token: \(error.localizedDescription)")))
@@ -520,6 +608,11 @@ class NetworkClient: NSObject {
     
     func getCreditPackages(completion: @escaping (Result<CreditPackagesResponse, NetworkError>) -> Void) {
         let endpoint = baseUrl + "/credit-packages"
+        getJSON(url: endpoint, completion: completion)
+    }
+    
+    func getWelcomeCredits(completion: @escaping (Result<WelcomeCreditsResponse, NetworkError>) -> Void) {
+        let endpoint = baseUrl + "/welcome-credits"
         getJSON(url: endpoint, completion: completion)
     }
     
@@ -723,93 +816,149 @@ class NetworkClient: NSObject {
             }
         }
     }
-}
-
-extension NetworkClient: URLSessionDataDelegate {
-    func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive data: Data) {
-        let taskId = dataTask.taskIdentifier
-        
-        if receivedDataForTasks[taskId] == nil {
-            receivedDataForTasks[taskId] = Data()
-        }
-        receivedDataForTasks[taskId]?.append(data)
-    }
     
-    func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
-        let taskId = task.taskIdentifier
-        
-        if let error = error {
-            print("📱 Background task \(taskId) completed with error: \(error)")
-            
-            // Check for specific background transfer errors
-            if let urlError = error as? URLError {
-                switch urlError.code {
-                case .backgroundSessionInUseByAnotherProcess:
-                    print("⚠️ Background session in use by another process")
-                case .backgroundSessionWasDisconnected:
-                    print("⚠️ Background session was disconnected")
-                case .networkConnectionLost:
-                    print("⚠️ Network connection lost during background transfer")
-                default:
-                    print("⚠️ URLError: \(urlError.localizedDescription)")
-                }
-            }
-        } else {
-            print("📱 Background task \(taskId) completed successfully")
-        }
-        
-        guard let completion = pendingCompletions[taskId] else {
-            print("⚠️ No completion handler found for task \(taskId)")
-            return
-        }
-        
-        // Remove completion handler and get data
-        pendingCompletions.removeValue(forKey: taskId)
-        let data = receivedDataForTasks.removeValue(forKey: taskId)
-        
-        DispatchQueue.main.async {
-            if let error = error {
-                completion(.failure(.unknown(error.localizedDescription)))
-                return
-            }
-            
-            guard let httpResponse = task.response as? HTTPURLResponse else {
-                completion(.failure(.invalidResponse))
-                return
-            }
-            
-            if httpResponse.statusCode != 200 {
-                print("⚠️ HTTP Status Code: \(httpResponse.statusCode)")
-                completion(.failure(.unexpectedStatusCode(httpResponse.statusCode)))
-                return
-            }
-            
-            guard let data = data else {
-                completion(.failure(.noData))
-                return
-            }
-            
+    // MARK: - User Profile Update
+    
+    func updateUser(name: String, completion: @escaping (Result<User, NetworkError>) -> Void) {
+        Task {
             do {
-                let decodedObject: DateIdeaResponse = try self.decodeFromJSON(data: data)
-                print("✅ Successfully decoded background response")
-                completion(.success(decodedObject))
+                // Get Firebase auth token
+                guard let currentUser = Auth.auth().currentUser else {
+                    completion(.failure(.unknown("User not authenticated")))
+                    return
+                }
+                
+                let idToken = try await currentUser.getIDToken()
+                let endpoint = baseUrl + "/user"
+                
+                guard let url = URL(string: endpoint) else {
+                    completion(.failure(.invalidUrl))
+                    return
+                }
+                
+                var request = URLRequest(url: url)
+                request.httpMethod = "PUT"
+                request.addValue("Bearer \(idToken)", forHTTPHeaderField: "Authorization")
+                request.addValue("application/json", forHTTPHeaderField: "Content-Type")
+                
+                // Create request body with only name field
+                let updateRequest = ["name": name]
+                
+                let encoder = JSONEncoder()
+                request.httpBody = try encoder.encode(updateRequest)
+                
+                print("📡 PUT User Update: \(endpoint)")
+                
+                let (data, response) = try await URLSession.shared.data(for: request)
+                
+                guard let httpResponse = response as? HTTPURLResponse else {
+                    completion(.failure(.invalidResponse))
+                    return
+                }
+                
+                guard 200...299 ~= httpResponse.statusCode else {
+                    completion(.failure(.unexpectedStatusCode(httpResponse.statusCode)))
+                    return
+                }
+                
+                var updatedUser: User = try decodeFromJSON(data: data)
+                
+                // Convert S3 profile image URL to CloudFront URL if present
+                if let s3ProfileImageUrl = updatedUser.profileImageUrl {
+                    let cloudFrontUrl = URLHelpers.convertToCloudFrontURL(s3ProfileImageUrl)
+                    updatedUser.profileImageUrl = cloudFrontUrl
+                    print("🔄 Converted S3 URL to CloudFront for updated user: \(s3ProfileImageUrl) → \(cloudFrontUrl)")
+                }
+                
+                // Update cache with new user data
+                UserCache.shared.cacheUser(updatedUser)
+                
+                print("🟢 Successfully updated user")
+                
+                completion(.success(updatedUser))
+                
             } catch {
-                print("❌ Decoding error: \(error)")
-                completion(.failure(.decodingError))
+                print("❌ User update error: \(error)")
+                completion(.failure(.unknown(error.localizedDescription)))
             }
         }
     }
     
-    func urlSessionDidFinishEvents(forBackgroundURLSession session: URLSession) {
-        print("📱 Background URL session finished all events")
+    // MARK: - User Level and Idea Count
+    
+    func getUserLevel(completion: @escaping (Result<UserLevelResponse, NetworkError>) -> Void) {
+        Task {
+            do {
+                // Get Firebase auth token
+                guard let currentUser = Auth.auth().currentUser else {
+                    completion(.failure(.unknown("User not authenticated")))
+                    return
+                }
+                
+                let idToken = try await currentUser.getIDToken()
+                let endpoint = baseUrl + "/user-level"
+                
+                getJSON(url: endpoint, authToken: idToken, completion: completion)
+            } catch {
+                completion(.failure(.unknown("Failed to get auth token: \(error.localizedDescription)")))
+            }
+        }
+    }
+    
+    /// Directly fetch a user by ID from the network, bypassing cache completely
+    func getUserById(_ userId: String, completion: @escaping (Result<User, NetworkError>) -> Void) {
+        let endpoint = baseUrl + "/users/\(userId)"
         
-        DispatchQueue.main.async {
-            // Call the app's background completion handler to tell iOS we're done
-            if let appDelegate = UIApplication.shared.delegate as? AppDelegate,
-               let completionHandler = appDelegate.backgroundCompletionHandler {
-                print("📱 Calling background completion handler")
-                completionHandler()
-                appDelegate.backgroundCompletionHandler = nil
+        Task {
+            do {
+                // Get Firebase auth token for authenticated requests
+                guard let currentUser = Auth.auth().currentUser else {
+                    completion(.failure(.unknown("User not authenticated")))
+                    return
+                }
+                
+                let idToken = try await currentUser.getIDToken()
+                
+                guard let url = URL(string: endpoint) else {
+                    completion(.failure(.invalidUrl))
+                    return
+                }
+                
+                var request = URLRequest(url: url)
+                request.addValue("Bearer \(idToken)", forHTTPHeaderField: "Authorization")
+                
+                print("📡 GET User by ID (force): \(endpoint)")
+                
+                let (data, response) = try await URLSession.shared.data(for: request)
+                
+                guard let httpResponse = response as? HTTPURLResponse else {
+                    completion(.failure(.invalidResponse))
+                    return
+                }
+                
+                guard httpResponse.statusCode == 200 else {
+                    completion(.failure(.unexpectedStatusCode(httpResponse.statusCode)))
+                    return
+                }
+                
+                var user: User = try decodeFromJSON(data: data)
+                
+                // Convert S3 profile image URL to CloudFront URL if present
+                if let s3ProfileImageUrl = user.profileImageUrl {
+                    let cloudFrontUrl = URLHelpers.convertToCloudFrontURL(s3ProfileImageUrl)
+                    user.profileImageUrl = cloudFrontUrl
+                    print("🔄 Converted S3 URL to CloudFront for fetched user: \(s3ProfileImageUrl) → \(cloudFrontUrl)")
+                }
+                
+                // Update cache with fresh data
+                UserCache.shared.cacheUser(user)
+                
+                print("🟢 Force fetched user by ID: \(user.displayName) - Level: \(user.playerLevel ?? "none")")
+                completion(.success(user))
+                
+            } catch {
+                print("❌ Force fetch user by ID error: \(error)")
+                completion(.failure(.unknown(error.localizedDescription)))
             }
         }
     }
