@@ -59,6 +59,24 @@ class ActivityHistoryViewModel: ObservableObject {
                 self.removeDeletedIdea(ideaId: ideaId)
             }
             .store(in: &cancellables)
+        
+        // Listen for user logout - clear all data
+        NotificationCenter.default.publisher(for: .userLoggedOut)
+            .sink { [weak self] _ in
+                guard let self = self else { return }
+                self.clearAllData()
+                print("🔄 ActivityHistoryViewModel: Cleared data on user logout")
+            }
+            .store(in: &cancellables)
+        
+        // Listen for user login - refresh activities for new user
+        NotificationCenter.default.publisher(for: .userLoggedIn)
+            .sink { [weak self] notification in
+                guard let self = self else { return }
+                self.refreshForNewUser()
+                print("🔄 ActivityHistoryViewModel: Refreshing activities for new user")
+            }
+            .store(in: &cancellables)
     }
     
     private func updateIdeaVisibility(ideaId: String, isPublic: Bool) {
@@ -127,6 +145,24 @@ class ActivityHistoryViewModel: ObservableObject {
         searchResults.removeAll { $0.id == ideaId }
         
         print("🗑️ ActivityHistoryViewModel: Removed deleted idea \(ideaId)")
+    }
+    
+    /// Clears all cached data when user logs out
+    private func clearAllData() {
+        activities = []
+        searchResults = []
+        searchQuery = ""
+        hasSearched = false
+        error = nil
+    }
+    
+    /// Refreshes activities for a newly logged in user
+    private func refreshForNewUser() {
+        // Clear previous user's data first
+        clearAllData()
+        
+        // Load activities for the new user
+        loadActivities()
     }
     
     func loadActivities() {

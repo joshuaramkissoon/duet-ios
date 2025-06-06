@@ -290,6 +290,47 @@ struct DateIdeaDetailView: View {
                     print("🔄 Updated author user for idea \(currentDateIdeaResponse.id) with new profile data")
                 }
             }
+            .onReceive(NotificationCenter.default.publisher(for: .ideaVisibilityUpdated)) { notification in
+                // Update local state if this idea's visibility was changed from another part of the app
+                if let ideaId = notification.userInfo?["ideaId"] as? String,
+                   let isPublic = notification.userInfo?["isPublic"] as? Bool,
+                   ideaId == currentDateIdeaResponse.id {
+                    
+                    // Update the view model's dateIdeaResponse to reflect the new visibility
+                    if var updatedResponse = viewModel.dateIdeaResponse {
+                        updatedResponse = DateIdeaResponse(
+                            id: updatedResponse.id,
+                            summary: updatedResponse.summary,
+                            title: updatedResponse.title,
+                            description: updatedResponse.description,
+                            thumbnail_b64: updatedResponse.thumbnail_b64,
+                            thumbnail_url: updatedResponse.thumbnail_url,
+                            video_url: updatedResponse.video_url,
+                            videoMetadata: updatedResponse.videoMetadata,
+                            original_source_url: updatedResponse.original_source_url,
+                            user_id: updatedResponse.user_id,
+                            user_name: updatedResponse.user_name,
+                            created_at: updatedResponse.created_at,
+                            isPublic: isPublic
+                        )
+                        viewModel.dateIdeaResponse = updatedResponse
+                        viewModel.dateIdea = updatedResponse.summary
+                        print("🔄 DateIdeaDetailView: Updated visibility for idea \(ideaId): \(isPublic ? "Public" : "Private")")
+                    }
+                }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .ideaMetadataUpdated)) { notification in
+                // Update local state if this idea's metadata was changed from another part of the app
+                if let ideaId = notification.userInfo?["ideaId"] as? String,
+                   let updatedIdea = notification.userInfo?["updatedIdea"] as? DateIdeaResponse,
+                   ideaId == currentDateIdeaResponse.id {
+                    
+                    // Update the view model's data with the updated idea
+                    viewModel.dateIdeaResponse = updatedIdea
+                    viewModel.dateIdea = updatedIdea.summary
+                    print("🔄 DateIdeaDetailView: Updated metadata for idea \(ideaId)")
+                }
+            }
             .toolbar {
                 // Only show the options menu for now (remove Watch button)
                 ToolbarItem(placement: .navigationBarTrailing) {

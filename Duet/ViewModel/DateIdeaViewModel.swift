@@ -331,7 +331,7 @@ class DateIdeaViewModel: ObservableObject {
     }
 }
 
-struct VideoMetadata: Codable {
+struct VideoMetadata: Codable, Equatable {
     let ratio_width: Int
     let ratio_height: Int
     let author_handle: String?
@@ -398,7 +398,7 @@ struct VideoMetadata: Codable {
     var isLandscape: Bool { ratio_width > ratio_height }
 }
 
-struct DateIdeaResponse: Codable, Identifiable {
+struct DateIdeaResponse: Codable, Identifiable, Equatable {
     let id: String
     var summary: DateIdea
     let title: String
@@ -439,6 +439,22 @@ struct DateIdeaResponse: Codable, Identifiable {
         case created_at = "created_at"
         case isPublic = "public"
     }
+    
+    // MARK: - Equatable Implementation
+    static func == (lhs: DateIdeaResponse, rhs: DateIdeaResponse) -> Bool {
+        return lhs.id == rhs.id &&
+               lhs.title == rhs.title &&
+               lhs.description == rhs.description &&
+               lhs.video_url == rhs.video_url &&
+               lhs.original_source_url == rhs.original_source_url &&
+               lhs.user_id == rhs.user_id &&
+               lhs.user_name == rhs.user_name &&
+               lhs.created_at == rhs.created_at &&
+               lhs.isPublic == rhs.isPublic
+        // Note: We're not comparing summary and videoMetadata for performance reasons
+        // since they're complex objects. The ID and other fields should be sufficient
+        // to detect meaningful changes for onChange purposes.
+    }
 }
 
 // MARK: - Request Models
@@ -457,4 +473,6 @@ extension Notification.Name {
     static let ideaVisibilityUpdated = Notification.Name("ideaVisibilityUpdated")
     static let ideaMetadataUpdated = Notification.Name("ideaMetadataUpdated")
     static let ideaDeleted = Notification.Name("ideaDeleted")
+    static let userLoggedOut = Notification.Name("userLoggedOut")
+    static let userLoggedIn = Notification.Name("userLoggedIn")
 }

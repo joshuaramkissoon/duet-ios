@@ -32,7 +32,9 @@ class AuthenticationViewModel: ObservableObject {
     init() {
         handle = Auth.auth().addStateDidChangeListener { [weak self] _, user in
             guard let self = self else { return }
+            let previousUser = self.user
             self.user = user
+            
             if let user {
                 SharedUserManager.shared.setCurrentUserId(user.uid)
                 self.fetchCurrentUserInfo(for: user)
@@ -46,6 +48,16 @@ class AuthenticationViewModel: ObservableObject {
                     await SubscriptionService.shared.refreshSubscriptionStatus()
                     print("🟢 RevenueCat user logged in: \(user.uid)")
                 }
+                
+                // Post notification for user login (only if this is a new user or first login)
+                if previousUser?.uid != user.uid {
+                    NotificationCenter.default.post(
+                        name: .userLoggedIn, 
+                        object: nil, 
+                        userInfo: ["userId": user.uid]
+                    )
+                    print("🔄 Posted userLoggedIn notification for user: \(user.uid)")
+                }
             }
             else {
                 SharedUserManager.shared.clearCurrentUser()
@@ -56,6 +68,12 @@ class AuthenticationViewModel: ObservableObject {
                 Task {
                     await SubscriptionService.shared.logout()
                     print("🟢 RevenueCat user logged out")
+                }
+                
+                // Post notification for user logout (only if there was a previous user)
+                if previousUser != nil {
+                    NotificationCenter.default.post(name: .userLoggedOut, object: nil)
+                    print("🔄 Posted userLoggedOut notification")
                 }
             }
             self.state = (user == nil ? .unauthenticated : .authenticated)

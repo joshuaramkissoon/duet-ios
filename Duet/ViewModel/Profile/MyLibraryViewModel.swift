@@ -95,6 +95,26 @@ class MyLibraryViewModel: ObservableObject {
                 self.removeDeletedIdea(ideaId: ideaId)
             }
             .store(in: &cancellables)
+        
+        // Listen for user logout - clear all data
+        NotificationCenter.default.publisher(for: .userLoggedOut)
+            .sink { [weak self] _ in
+                guard let self = self else { return }
+                self.clearAllData()
+                print("🔄 MyLibraryViewModel: Cleared data on user logout")
+            }
+            .store(in: &cancellables)
+        
+        // Listen for user login - refresh for new user
+        NotificationCenter.default.publisher(for: .userLoggedIn)
+            .sink { [weak self] notification in
+                guard let self = self else { return }
+                if let userId = notification.userInfo?["userId"] as? String {
+                    self.refreshForNewUser(userId: userId)
+                    print("🔄 MyLibraryViewModel: Refreshing library for new user: \(userId)")
+                }
+            }
+            .store(in: &cancellables)
     }
     
     private func updateIdeaVisibility(ideaId: String, isPublic: Bool) {
@@ -168,6 +188,32 @@ class MyLibraryViewModel: ObservableObject {
         
         // Remove from search results array if it exists there too
         searchResults.removeAll { $0.id == ideaId }
+    }
+    
+    /// Clears all cached data when user logs out
+    private func clearAllData() {
+        userIdeas = []
+        searchResults = []
+        query = ""
+        hasSearched = false
+        isSearchFieldVisible = false
+        errorMessage = nil
+        currentPage = 1
+        hasMorePages = false
+        totalUserIdeas = 0
+        authorId = nil
+    }
+    
+    /// Refreshes library for a newly logged in user
+    private func refreshForNewUser(userId: String) {
+        // Clear previous user's data first
+        clearAllData()
+        
+        // Set the new author ID
+        setAuthorId(userId)
+        
+        // Load user ideas for the new user
+        loadUserIdeas()
     }
     
     func setAuthorId(_ id: String) {

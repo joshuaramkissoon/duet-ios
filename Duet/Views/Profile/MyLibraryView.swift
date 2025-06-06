@@ -27,6 +27,9 @@ struct MyLibraryView: View {
     @State private var selectedActivity: DateIdeaResponse?
     @State private var showDetailView = false
     
+    // Add StateObject for DateIdeaViewModel like ActivityHistoryCard does
+    @StateObject private var dateIdeaViewModel: DateIdeaViewModel
+    
     // Computed property to get all unique tags from current display items
     // This automatically switches between all ideas and search results based on search state
     private var availableTags: [Tag] {
@@ -51,11 +54,13 @@ struct MyLibraryView: View {
     // Default initializer for backwards compatibility
     init() {
         self.viewModel = MyLibraryViewModel()
+        self._dateIdeaViewModel = StateObject(wrappedValue: DateIdeaViewModel(toast: ToastManager(), videoUrl: ""))
     }
     
     // Preferred initializer with injected view model
     init(viewModel: MyLibraryViewModel) {
         self.viewModel = viewModel
+        self._dateIdeaViewModel = StateObject(wrappedValue: DateIdeaViewModel(toast: ToastManager(), videoUrl: ""))
     }
 
     var body: some View {
@@ -102,7 +107,7 @@ struct MyLibraryView: View {
                             onImmersiveToggle: {
                                 // Do nothing - we don't want immersive mode in library
                             },
-                            viewModel: DateIdeaViewModel(toast: ToastManager(), videoUrl: selectedActivity.cloudFrontVideoURL)
+                            viewModel: dateIdeaViewModel
                         )
                         .navigationBarBackButtonHidden(false)
                     }
@@ -142,6 +147,55 @@ struct MyLibraryView: View {
                     // Simple background refresh without timing restrictions - same as ExploreView approach
                     // viewModel.backgroundLoadUserIdeas()
                 }
+            }
+            
+            // Update the dateIdeaViewModel with the correct toast manager from environment
+            dateIdeaViewModel.updateToastManager(toast)
+        }
+        .onChange(of: selectedActivity) { _, newActivity in
+            // Update the dateIdeaViewModel when selectedActivity changes
+            if let activity = newActivity {
+                dateIdeaViewModel.videoUrl = activity.cloudFrontVideoURL
+                dateIdeaViewModel.setCurrentDateIdea(activity)
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .ideaVisibilityUpdated)) { notification in
+            // Update selectedActivity if its visibility was changed from elsewhere
+            if let selectedActivity = selectedActivity,
+               let ideaId = notification.userInfo?["ideaId"] as? String,
+               let isPublic = notification.userInfo?["isPublic"] as? Bool,
+               ideaId == selectedActivity.id {
+                
+                // Update the selectedActivity with new visibility
+                var updatedActivity = selectedActivity
+                updatedActivity = DateIdeaResponse(
+                    id: updatedActivity.id,
+                    summary: updatedActivity.summary,
+                    title: updatedActivity.title,
+                    description: updatedActivity.description,
+                    thumbnail_b64: updatedActivity.thumbnail_b64,
+                    thumbnail_url: updatedActivity.thumbnail_url,
+                    video_url: updatedActivity.video_url,
+                    videoMetadata: updatedActivity.videoMetadata,
+                    original_source_url: updatedActivity.original_source_url,
+                    user_id: updatedActivity.user_id,
+                    user_name: updatedActivity.user_name,
+                    created_at: updatedActivity.created_at,
+                    isPublic: isPublic
+                )
+                self.selectedActivity = updatedActivity
+                print("🔄 MyLibraryView: Updated selectedActivity visibility for idea \(ideaId): \(isPublic ? "Public" : "Private")")
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .ideaMetadataUpdated)) { notification in
+            // Update selectedActivity if its metadata was changed from elsewhere
+            if let selectedActivity = selectedActivity,
+               let ideaId = notification.userInfo?["ideaId"] as? String,
+               let updatedIdea = notification.userInfo?["updatedIdea"] as? DateIdeaResponse,
+               ideaId == selectedActivity.id {
+                
+                self.selectedActivity = updatedIdea
+                print("🔄 MyLibraryView: Updated selectedActivity metadata for idea \(ideaId)")
             }
         }
         .confirmationDialog(

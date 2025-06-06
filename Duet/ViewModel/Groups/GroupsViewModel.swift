@@ -53,13 +53,56 @@ class GroupsViewModel: ObservableObject {
     @Published var inviteLink: URL?
     @Published var joinResult: AlertResult?
 
+    private let db = Firestore.firestore()
+    private var listener: ListenerRegistration?
+    private var cancellables = Set<AnyCancellable>()
 
-  private let db = Firestore.firestore()
-  private var listener: ListenerRegistration?
-
-  var currentUid: String? {
-    Auth.auth().currentUser?.uid
-  }
+    var currentUid: String? {
+        Auth.auth().currentUser?.uid
+    }
+    
+    init() {
+        setupNotificationListeners()
+    }
+    
+    private func setupNotificationListeners() {
+        // Listen for user logout - clear groups and stop listening
+        NotificationCenter.default.publisher(for: .userLoggedOut)
+            .sink { [weak self] _ in
+                guard let self = self else { return }
+                self.clearAllData()
+                print("🔄 GroupsViewModel: Cleared groups on user logout")
+            }
+            .store(in: &cancellables)
+        
+        // Listen for user login - restart listening for new user
+        NotificationCenter.default.publisher(for: .userLoggedIn)
+            .sink { [weak self] notification in
+                guard let self = self else { return }
+                self.refreshForNewUser()
+                print("🔄 GroupsViewModel: Restarting listener for new user")
+            }
+            .store(in: &cancellables)
+    }
+    
+    /// Clears all cached data when user logs out
+    private func clearAllData() {
+        groups = []
+        errorMessage = nil
+        selectedGroup = nil
+        inviteLink = nil
+        joinResult = nil
+        stopListening()
+    }
+    
+    /// Restarts listening for a newly logged in user
+    private func refreshForNewUser() {
+        // Clear previous user's data first
+        clearAllData()
+        
+        // Start listening for the new user's groups
+        startListening()
+    }
 
   func startListening() {
     guard let currentUid else { return }
