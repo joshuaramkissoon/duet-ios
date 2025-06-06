@@ -16,6 +16,8 @@ struct AuthenticationView: View {
     @EnvironmentObject private var activityVM: ActivityHistoryViewModel
     @EnvironmentObject private var creditUIManager: CreditUIManager
     @State private var showingError = false
+    @State private var showingTermsOfService = false
+    @State private var showingPrivacyPolicy = false
     
     @ViewBuilder
     private var authContent: some View {
@@ -53,6 +55,12 @@ struct AuthenticationView: View {
         }
         .sheet(isPresented: $creditUIManager.showPurchaseCreditsSheet) {
             PurchaseCreditsSheet()
+        }
+        .sheet(isPresented: $showingTermsOfService) {
+            TermsOfServiceView(isPresented: $showingTermsOfService)
+        }
+        .sheet(isPresented: $showingPrivacyPolicy) {
+            PrivacyPolicyView(isPresented: $showingPrivacyPolicy)
         }
         .toast($toast.state) 
     }
@@ -102,9 +110,140 @@ struct AuthenticationView: View {
             .foregroundStyle(.gray)
             .padding(.horizontal)
             
+            // Terms of Service Agreement
+            VStack(spacing: 8) {
+                Text("By signing up, you agree to our")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                
+                HStack(spacing: 4) {
+                    Button(action: {
+                        showingTermsOfService = true
+                    }) {
+                        Text("Terms of Service")
+                            .font(.caption)
+                            .foregroundColor(.appPrimary)
+                            .underline()
+                    }
+                    
+                    Text("and")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    
+                    Button(action: {
+                        showingPrivacyPolicy = true
+                    }) {
+                        Text("Privacy Policy")
+                            .font(.caption)
+                            .foregroundColor(.appPrimary)
+                            .underline()
+                    }
+                }
+            }
+            .padding(.top, 16)
+            
             Spacer()
         }
         .padding()
+    }
+}
+
+// MARK: - Terms of Service View
+
+struct TermsOfServiceView: View {
+    @Binding var isPresented: Bool
+    @State private var isLoading = true
+    
+    var body: some View {
+        NavigationView {
+            ZStack {
+                if isLoading {
+                    VStack(spacing: 16) {
+                        ProgressView()
+                            .scaleEffect(1.2)
+                        Text("Loading Terms of Service...")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                    }
+                } else {
+                    WebView(url: URL(string: "\(NetworkClient.shared.baseUrl)/terms")!)
+                }
+            }
+            .navigationTitle("Terms of Service")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Done") {
+                        isPresented = false
+                    }
+                }
+            }
+            .onAppear {
+                // Small delay to show loading state briefly
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    isLoading = false
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Privacy Policy View
+
+struct PrivacyPolicyView: View {
+    @Binding var isPresented: Bool
+    @State private var isLoading = true
+    
+    var body: some View {
+        NavigationView {
+            ZStack {
+                if isLoading {
+                    VStack(spacing: 16) {
+                        ProgressView()
+                            .scaleEffect(1.2)
+                        Text("Loading Privacy Policy...")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                    }
+                } else {
+                    WebView(url: URL(string: "\(NetworkClient.shared.baseUrl)/privacy")!)
+                }
+            }
+            .navigationTitle("Privacy Policy")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Done") {
+                        isPresented = false
+                    }
+                }
+            }
+            .onAppear {
+                // Small delay to show loading state briefly
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    isLoading = false
+                }
+            }
+        }
+    }
+}
+
+// MARK: - WebView for Terms of Service
+
+import WebKit
+
+struct WebView: UIViewRepresentable {
+    let url: URL
+    
+    func makeUIView(context: Context) -> WKWebView {
+        let webView = WKWebView()
+        let request = URLRequest(url: url)
+        webView.load(request)
+        return webView
+    }
+    
+    func updateUIView(_ uiView: WKWebView, context: Context) {
+        // No updates needed
     }
 }
 

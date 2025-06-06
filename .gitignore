@@ -64,3 +64,4 @@ fastlane/test_output
 firestore.rules
 Config.xcconfig
 Duet/Config.xcconfig*.xcworkspace/xcshareddata/swiftpm/Package.resolved
+Duet.xcodeproj/project.xcworkspace/xcshareddata/

@@ -57,6 +57,94 @@ class NetworkClient: NSObject {
         return decodedObject
     }
     
+    // MARK: - Authenticated Request Methods
+    
+    /// Generic authenticated GET request that automatically adds Firebase auth token
+    func authenticatedGet<T: Decodable>(
+        endpoint: String,
+        completion: @escaping (Result<T, NetworkError>) -> Void
+    ) {
+        Task {
+            do {
+                guard let currentUser = Auth.auth().currentUser else {
+                    completion(.failure(.unknown("User not authenticated")))
+                    return
+                }
+                
+                let idToken = try await currentUser.getIDToken()
+                let fullUrl = baseUrl + endpoint
+                
+                getJSON(url: fullUrl, authToken: idToken, completion: completion)
+            } catch {
+                completion(.failure(.unknown("Failed to get auth token: \(error.localizedDescription)")))
+            }
+        }
+    }
+    
+    /// Generic authenticated POST request that automatically adds Firebase auth token
+    func authenticatedPost<T: Encodable>(
+        endpoint: String,
+        body: T,
+        completion: @escaping (Result<Void, NetworkError>) -> Void
+    ) {
+        Task {
+            do {
+                guard let currentUser = Auth.auth().currentUser else {
+                    completion(.failure(.unknown("User not authenticated")))
+                    return
+                }
+                
+                let idToken = try await currentUser.getIDToken()
+                let fullUrl = baseUrl + endpoint
+                
+                guard let url = URL(string: fullUrl) else {
+                    completion(.failure(.invalidUrl))
+                    return
+                }
+                
+                var request = URLRequest(url: url)
+                request.httpMethod = "POST"
+                request.addValue("Bearer \(idToken)", forHTTPHeaderField: "Authorization")
+                request.addValue("application/json", forHTTPHeaderField: "Content-Type")
+                
+                do {
+                    let encoder = JSONEncoder()
+                    encoder.keyEncodingStrategy = .convertToSnakeCase
+                    request.httpBody = try encoder.encode(body)
+                } catch {
+                    completion(.failure(.encodingError))
+                    return
+                }
+                
+                print("📡 Authenticated POST \(endpoint): \(fullUrl)")
+                
+                URLSession.shared.dataTask(with: request) { data, response, error in
+                    if let _ = error {
+                        completion(.failure(.unknown(nil)))
+                        return
+                    }
+                    
+                    guard let httpResponse = response as? HTTPURLResponse else {
+                        completion(.failure(.invalidResponse))
+                        return
+                    }
+                    
+                    guard httpResponse.statusCode == 200 else {
+                        completion(.failure(.unexpectedStatusCode(httpResponse.statusCode)))
+                        return
+                    }
+                    
+                    completion(.success(()))
+                }.resume()
+                
+            } catch {
+                completion(.failure(.unknown("Failed to get auth token: \(error.localizedDescription)")))
+            }
+        }
+    }
+    
+    // MARK: - Basic Request Methods
+    
     private func getJSON<T: Decodable>(url: String, completion: @escaping (Result<T, NetworkError>) -> Void) {
         getJSON(url: url, authToken: nil, completion: completion)
     }
@@ -320,8 +408,22 @@ class NetworkClient: NSObject {
     }
     
     func getFeed(page: Int = 1, pageSize: Int = 20, completion: @escaping (Result<PaginatedFeedResponse, NetworkError>) -> Void) {
-        let url = baseUrl + "/feed?page=\(page)&page_size=\(pageSize)"
-        getJSON(url: url, completion: completion)
+        Task {
+            do {
+                // Get Firebase auth token as feed now requires authentication for user blocking
+                guard let currentUser = Auth.auth().currentUser else {
+                    completion(.failure(.unknown("User not authenticated")))
+                    return
+                }
+                
+                let idToken = try await currentUser.getIDToken()
+                let url = baseUrl + "/feed?page=\(page)&page_size=\(pageSize)"
+                
+                getJSON(url: url, authToken: idToken, completion: completion)
+            } catch {
+                completion(.failure(.unknown("Failed to get auth token: \(error.localizedDescription)")))
+            }
+        }
     }
     
     func getUserIdeas(userId: String, page: Int = 1, pageSize: Int = 20, completion: @escaping (Result<PaginatedFeedResponse, NetworkError>) -> Void) {

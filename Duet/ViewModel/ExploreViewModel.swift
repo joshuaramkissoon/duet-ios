@@ -108,6 +108,27 @@ class ExploreViewModel: ObservableObject {
                 self.removeDeletedIdea(ideaId: ideaId)
             }
             .store(in: &cancellables)
+        
+        // Listen for user blocking events
+        NotificationCenter.default.publisher(for: .userBlocked)
+            .sink { [weak self] notification in
+                guard let self = self,
+                      let blockedUserId = notification.userInfo?["blockedUserId"] as? String else { return }
+                
+                self.removeIdeasFromBlockedUser(userId: blockedUserId)
+            }
+            .store(in: &cancellables)
+        
+        // Listen for user unblocking events
+        NotificationCenter.default.publisher(for: .userUnblocked)
+            .sink { [weak self] notification in
+                guard let self = self,
+                      let unblockedUserId = notification.userInfo?["unblockedUserId"] as? String else { return }
+                
+                // When a user is unblocked, we should refresh the feed to potentially show their content again
+                self.refresh()
+            }
+            .store(in: &cancellables)
     }
     
     private func updateIdeaVisibility(ideaId: String, isPublic: Bool) {
@@ -176,6 +197,20 @@ class ExploreViewModel: ObservableObject {
         searchResults.removeAll { $0.id == ideaId }
         
         print("🗑️ ExploreViewModel: Removed deleted idea \(ideaId) from feed and search results")
+    }
+    
+    private func removeIdeasFromBlockedUser(userId: String) {
+        // Count how many ideas we're removing for logging
+        let feedIdeasCount = feedItems.filter { $0.user_id == userId }.count
+        let searchIdeasCount = searchResults.filter { $0.user_id == userId }.count
+        
+        // Remove from feed items array
+        feedItems.removeAll { $0.user_id == userId }
+        
+        // Remove from search results array
+        searchResults.removeAll { $0.user_id == userId }
+        
+        print("🚫 ExploreViewModel: Removed \(feedIdeasCount) feed ideas and \(searchIdeasCount) search ideas from blocked user \(userId)")
     }
     
     // MARK: - Feed Functions

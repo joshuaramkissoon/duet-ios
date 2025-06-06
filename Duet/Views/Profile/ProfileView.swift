@@ -18,9 +18,6 @@ struct ProfileView: View {
     @EnvironmentObject private var subscriptionService: SubscriptionService
 
     @StateObject private var vm = ProfileViewModel()
-    @StateObject private var creditService = CreditService.shared
-    @State private var quickPurchasePackage: CreditPackage?
-    @State private var currency: String = "gbp"
     @State private var showPlayerLevelRoadmap = false
     
     // MARK: - Name Editing State
@@ -43,59 +40,23 @@ struct ProfileView: View {
     }
     
     var body: some View {
-        ZStack {
-            ScrollView(.vertical, showsIndicators: false) {
-                VStack(spacing: 24) {
-                    // MARK: — Profile Header Section
-                    if let user = authVM.user {
-                        profileHeaderSection(user: user)
-                            .padding(.top, 20)
-                    }
-
-                    // MARK: — My Library Section
-                    myLibrarySection
-
-                    // MARK: — Settings Section
-                    settingsSection
-
-                    // MARK: — Recent Transactions Section
-                    recentTransactionsSection
-
-                    Spacer(minLength: 200)
-
-                    // MARK: — Actions
-                    Button(role: .destructive) {
-                        authVM.signOut()
-                    } label: {
-                        Label("Sign Out", systemImage: "arrow.backward.circle")
-                            .font(.headline)
-                    }
-                    .padding()
-                }
-                .padding(.horizontal)
-
-                // MARK: — Pro Member Section (if subscribed) or My Library Section
-                if subscriptionService.hasActiveSubscription() {
-                    proMemberSection
-                    myLibrarySection
-                } else {
-                    myLibrarySection
-                    upgradeToProSection
+        ScrollView(.vertical, showsIndicators: false) {
+            VStack(spacing: 24) {
+                // MARK: — Profile Header Section
+                if let user = authVM.user {
+                    profileHeaderSection(user: user)
+                        .padding(.top, 20)
                 }
 
-                // Note: Credit transactions section removed from UI
-                // Credit system code is kept for future use
+                // MARK: — My Library Section
+                myLibrarySection
+                    .padding(.horizontal, 20)
 
-                Spacer(minLength: 200)
+                // MARK: — Settings Section
+                settingsSection
+                    .padding(.horizontal, 20)
 
-                // MARK: — Actions
-                Button(role: .destructive) {
-                    authVM.signOut()
-                } label: {
-                    Label("Sign Out", systemImage: "arrow.backward.circle")
-                        .font(.headline)
-                }
-                .padding()
+                Spacer(minLength: 60)
             }
 
             // Hidden NavigationLink for programmatic navigation
@@ -150,12 +111,6 @@ struct ProfileView: View {
             if authVM.state == .authenticated {
                 authVM.forceRefreshCurrentUser()
             }
-            
-            // Note: We rely on CreditService.shared local cache instead of fetching every time
-            // Credit data gets updated automatically when:
-            // - User performs credit-consuming actions
-            // - Payment succeeds
-            // - App initially loads and fetches user data
         }
     }
     
@@ -296,18 +251,6 @@ struct ProfileView: View {
         .padding(.trailing, 10) // Ensure 10pt padding from trailing edge
     }
     
-    // MARK: - Pro Member Section
-    @ViewBuilder
-    private var proMemberSection: some View {
-        SimpleProMemberCard()
-    }
-    
-    // MARK: - Upgrade to Pro Section
-    @ViewBuilder
-    private var upgradeToProSection: some View {
-        SimpleProMemberCard()
-    }
-    
     // MARK: - My Library Section
     @ViewBuilder
     private var myLibrarySection: some View {
@@ -398,106 +341,6 @@ struct ProfileView: View {
             )
         }
         .buttonStyle(.plain)
-    }
-    
-    // MARK: - Recent Transactions Section
-    @ViewBuilder
-    private var recentTransactionsSection: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack {
-                Text("Recent Transactions")
-                    .font(.headline)
-                    .fontWeight(.semibold)
-                    .foregroundColor(.primary)
-                
-                Spacer()
-                
-                Button(action: {
-                    creditUIManager.showCreditsPage()
-                }) {
-                    Text("View All")
-                        .font(.subheadline)
-                        .foregroundColor(.appPrimary)
-                }
-                .buttonStyle(.plain)
-            }
-            
-            if creditService.isLoading {
-                loadingTransactionsView
-            } else if recentTransactions.isEmpty {
-                emptyTransactionsView
-            } else {
-                transactionsListView
-            }
-        }
-        .padding()
-        .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(Color(.systemBackground))
-                .shadow(color: Color.black.opacity(0.05), radius: 6, x: 0, y: 2)
-        )
-    }
-    
-    private var recentTransactions: [CreditTransaction] {
-        Array(creditService.creditHistory.prefix(3))
-    }
-    
-    private var loadingTransactionsView: some View {
-        VStack(spacing: 12) {
-            ForEach(0..<2, id: \.self) { _ in
-                HStack {
-                    Circle()
-                        .fill(.gray.opacity(0.2))
-                        .frame(width: 24, height: 24)
-                    
-                    VStack(alignment: .leading, spacing: 4) {
-                        RoundedRectangle(cornerRadius: 4)
-                            .fill(.gray.opacity(0.2))
-                            .frame(height: 12)
-                            .frame(maxWidth: .infinity)
-                        
-                        RoundedRectangle(cornerRadius: 4)
-                            .fill(.gray.opacity(0.1))
-                            .frame(height: 10)
-                            .frame(width: 100)
-                    }
-                    
-                    Spacer()
-                    
-                    RoundedRectangle(cornerRadius: 4)
-                        .fill(.gray.opacity(0.2))
-                        .frame(width: 40, height: 12)
-                }
-            }
-        }
-        .redacted(reason: .placeholder)
-    }
-    
-    private var emptyTransactionsView: some View {
-        VStack(spacing: 8) {
-            Image(systemName: "creditcard")
-                .font(.title2)
-                .foregroundColor(.gray.opacity(0.5))
-            
-            Text("No transactions yet")
-                .font(.subheadline)
-                .foregroundColor(.secondary)
-            
-            Text("Your credit activity will appear here")
-                .font(.caption)
-                .foregroundColor(.secondary.opacity(0.7))
-                .multilineTextAlignment(.center)
-        }
-        .padding(.vertical, 20)
-        .frame(maxWidth: .infinity)
-    }
-    
-    private var transactionsListView: some View {
-        VStack(spacing: 12) {
-            ForEach(recentTransactions) { transaction in
-                ProfileTransactionRow(transaction: transaction)
-            }
-        }
     }
     
     // MARK: - Profile Image Section
@@ -601,56 +444,6 @@ struct ProfileView: View {
             }
         } else {
             ProfileImage(user: User(id: user.uid, name: authVM.currentUser?.name ?? user.displayName), diam: 80)
-        }
-    }
-    
-    private func refreshData() async {
-        await creditService.refreshCreditData()
-    }
-    
-    // MARK: - Quick Purchase Credits
-    private func fetchQuickPurchasePackage() async {
-        await withCheckedContinuation { continuation in
-            NetworkClient.shared.getCreditPackages { result in
-                DispatchQueue.main.async {
-                    switch result {
-                    case .success(let packagesResponse):
-                        // Find the smallest package for quick purchase
-                        self.quickPurchasePackage = packagesResponse.packages.min { $0.credits < $1.credits }
-                        self.currency = packagesResponse.effectiveCurrency
-                        
-                    case .failure(let error):
-                        print("❌ Failed to fetch quick purchase package: \(error.localizedDescription)")
-                        self.quickPurchasePackage = nil
-                        self.currency = "gbp" // Default fallback
-                    }
-                    
-                    continuation.resume()
-                }
-            }
-        }
-    }
-    
-    private func quickPurchaseCredits(package: CreditPackage) {
-        NetworkClient.shared.createStripeCheckoutSession(packageId: package.id) { result in
-            DispatchQueue.main.async {
-                switch result {
-                case .success(let checkoutResponse):
-                    // Open Stripe checkout URL
-                    if let url = URL(string: checkoutResponse.url) {
-                        if UIApplication.shared.canOpenURL(url) {
-                            UIApplication.shared.open(url)
-                        } else {
-                            toast.error("Unable to open payment page")
-                        }
-                    } else {
-                        toast.error("Invalid payment URL received")
-                    }
-                    
-                case .failure(let error):
-                    toast.error("Payment failed: \(error.localizedDescription)")
-                }
-            }
         }
     }
     
