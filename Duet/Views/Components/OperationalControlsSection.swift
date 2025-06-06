@@ -444,7 +444,7 @@ struct OperationalControlsSection: View {
     @ViewBuilder
     private var mainBackground: some View {
         RoundedRectangle(cornerRadius: 16, style: .continuous)
-            .fill(Color(.systemBackground))
+            .fill(Color.adaptiveCardBackground)
             .shadow(
                 color: Color.black.opacity(0.06),
                 radius: isExpanded ? 12 : 6,

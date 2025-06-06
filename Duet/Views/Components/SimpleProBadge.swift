@@ -11,10 +11,13 @@ import SwiftUI
 
 struct SimpleProBadge: View {
     @EnvironmentObject private var subscriptionService: SubscriptionService
+    @State private var showManageSubscription = false
     
     var body: some View {
         Button(action: {
-            if !subscriptionService.hasActiveSubscription() {
+            if subscriptionService.hasActiveSubscription() {
+                showManageSubscription = true
+            } else {
                 subscriptionService.presentPaywall()
             }
         }) {
@@ -40,6 +43,10 @@ struct SimpleProBadge: View {
             )
         }
         .buttonStyle(PlainButtonStyle())
+        .sheet(isPresented: $showManageSubscription) {
+            ManageSubscriptionView()
+                .environmentObject(subscriptionService)
+        }
     }
     
     private var statusText: String {

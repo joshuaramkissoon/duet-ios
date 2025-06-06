@@ -88,14 +88,14 @@ struct BlockUserView: View {
                     .padding(24)
                     .background(
                         RoundedRectangle(cornerRadius: 16, style: .continuous)
-                            .fill(Color(.secondarySystemBackground))
+                            .fill(Color.adaptiveCardBackground)
                     )
                     
                     Spacer(minLength: 40)
                 }
                 .padding(.horizontal, 24)
             }
-            .background(Color(.systemGroupedBackground))
+            .background(Color.adaptiveBackground)
             .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -146,7 +146,7 @@ struct BlockUserView: View {
                 .padding(.horizontal, 24)
                 .padding(.bottom, 16)
                 .background(
-                    Color(.systemGroupedBackground)
+                    Color.adaptiveBackground
                         .ignoresSafeArea()
                 )
             }

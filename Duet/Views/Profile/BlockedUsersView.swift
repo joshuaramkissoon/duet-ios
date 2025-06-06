@@ -18,8 +18,8 @@ struct BlockedUsersView: View {
                 // Beautiful gradient background
                 LinearGradient(
                     colors: [
-                        Color(.systemGroupedBackground),
-                        Color(.systemGroupedBackground).opacity(0.8)
+                        Color.adaptiveBackground,
+                        Color.adaptiveBackground.opacity(0.8)
                     ],
                     startPoint: .topLeading,
                     endPoint: .bottomTrailing
@@ -199,8 +199,8 @@ struct BlockedUsersView: View {
                 .fill(
                     LinearGradient(
                         colors: [
-                            Color(.systemBackground),
-                            Color(.systemBackground).opacity(0.8)
+                            Color.adaptiveCardBackground,
+                            Color.adaptiveCardBackground.opacity(0.8)
                         ],
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
@@ -271,7 +271,8 @@ struct BlockedUserCard: View {
                         .font(.body)
                         .fontWeight(.semibold)
                         .foregroundColor(.primary)
-                        .lineLimit(1)
+                        .lineLimit(nil)
+                        .fixedSize(horizontal: false, vertical: true)
                     
                     HStack(spacing: 6) {
                         Image(systemName: "person.slash.fill")
@@ -295,9 +296,6 @@ struct BlockedUserCard: View {
                         ProgressView()
                             .progressViewStyle(CircularProgressViewStyle(tint: Color.green.opacity(0.8)))
                             .scaleEffect(0.8)
-                    } else {
-                        Image(systemName: "checkmark")
-                            .font(.system(size: 14, weight: .semibold))
                     }
                     
                     Text(isUnblocking ? "Unblocking..." : "Unblock")
@@ -324,8 +322,8 @@ struct BlockedUserCard: View {
                 .fill(
                     LinearGradient(
                         colors: [
-                            Color(.systemBackground),
-                            Color(.systemBackground).opacity(0.9)
+                            Color.adaptiveCardBackground,
+                            Color.adaptiveCardBackground.opacity(0.9)
                         ],
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing

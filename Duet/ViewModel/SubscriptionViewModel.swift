@@ -100,7 +100,7 @@ class SubscriptionViewModel: ObservableObject {
         switch result {
         case .success(let status):
             if status.isSubscribed {
-                successMessage = "✅ Subscription restored successfully!"
+                successMessage = "Subscription restored successfully!"
                 showSuccessAlert = true
             }
             // Don't show error for no subscriptions found - let the caller handle it

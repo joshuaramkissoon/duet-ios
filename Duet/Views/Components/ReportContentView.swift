@@ -33,7 +33,7 @@ struct ReportContentView: View {
         NavigationView {
             ZStack {
                 // Background
-                Color(.systemGroupedBackground)
+                Color.adaptiveBackground
                     .ignoresSafeArea()
                 
                 ScrollView {
@@ -112,7 +112,7 @@ struct ReportContentView: View {
                                     .padding(16)
                                     .background(
                                         RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                            .fill(Color(.systemBackground))
+                                            .fill(Color.adaptiveCardBackground)
                                             .shadow(color: Color.black.opacity(0.05), radius: 4, x: 0, y: 2)
                                     )
                             }
@@ -140,7 +140,7 @@ struct ReportContentView: View {
                                 .padding(16)
                                 .background(
                                     RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                        .fill(Color(.systemBackground))
+                                        .fill(Color.adaptiveCardBackground)
                                         .shadow(color: Color.black.opacity(0.05), radius: 4, x: 0, y: 2)
                                 )
                         }
@@ -175,7 +175,7 @@ struct ReportContentView: View {
                     .padding(.horizontal, 24)
                     .padding(.bottom, 16)
                     .background(
-                        Color(.systemGroupedBackground)
+                        Color.adaptiveBackground
                             .ignoresSafeArea()
                     )
             }
@@ -352,7 +352,7 @@ struct BeautifulReportReasonCard: View {
             .padding(20)
             .background(
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .fill(Color(.systemBackground))
+                    .fill(Color.adaptiveCardBackground)
                     .overlay(
                         RoundedRectangle(cornerRadius: 16, style: .continuous)
                             .stroke(

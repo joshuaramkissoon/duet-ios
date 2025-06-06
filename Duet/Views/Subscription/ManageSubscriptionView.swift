@@ -434,7 +434,7 @@ struct ManageSubscriptionView: View {
         switch result {
         case .success(let status):
             if status.isSubscribed {
-                toast.success("✅ Subscription restored successfully!")
+                toast.success("Subscription restored successfully!")
             } else {
                 toast.error("No active subscriptions found to restore.")
             }
