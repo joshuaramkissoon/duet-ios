@@ -80,7 +80,7 @@ struct ShareContentView: View {
                                 }
                                 .padding(.horizontal, 16)
                                 .padding(.vertical, 12)
-                                .background(Color.white)
+                                .background(Color.adaptiveCardBackground)
                                 .cornerRadius(12)
                                 .overlay(
                                     RoundedRectangle(cornerRadius: 12)

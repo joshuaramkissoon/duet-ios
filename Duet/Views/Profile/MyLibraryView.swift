@@ -252,7 +252,7 @@ struct MyLibraryView: View {
                 .padding(.vertical, 12)
                 .background(
                     RoundedRectangle(cornerRadius: 16)
-                        .fill(Color(.systemBackground))
+                        .fill(Color.adaptiveCardBackground)
                         .shadow(color: Color.black.opacity(0.08), radius: 8, x: 0, y: 2)
                 )
                 
@@ -636,7 +636,7 @@ struct TagFilterView: View {
         .padding(.horizontal, 16)
         .background(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(Color(.systemBackground))
+                .fill(Color.adaptiveCardBackground)
                 .overlay(
                     RoundedRectangle(cornerRadius: 16, style: .continuous)
                         .stroke(Color(.systemGray5), lineWidth: 0.5)

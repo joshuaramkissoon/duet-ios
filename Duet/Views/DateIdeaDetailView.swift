@@ -463,18 +463,48 @@ struct ColorPair {
 
 // Static palette of beautiful pastel colors
 struct ColorPalette {
-    // Collection of 10 pastel color pairs (background, foreground)
-    static let pastelPairs: [ColorPair] = [
-        ColorPair(background: Color(hex: "FFE2E2"), foreground: Color(hex: "F05454")), // Soft red
-        ColorPair(background: Color(hex: "FFEDDB"), foreground: Color(hex: "F0945E")), // Soft orange
-        ColorPair(background: Color(hex: "FFF8E1"), foreground: Color(hex: "EDAA25")), // Soft yellow
-        ColorPair(background: Color(hex: "E8F4D9"), foreground: Color(hex: "77AB59")), // Soft green
-        ColorPair(background: Color(hex: "D1EDF2"), foreground: Color(hex: "3D9FB4")), // Soft blue
-        ColorPair(background: Color(hex: "D9D7F1"), foreground: Color(hex: "6A60A9")), // Soft purple
-        ColorPair(background: Color(hex: "F6D6EC"), foreground: Color(hex: "C2519A")), // Soft pink
-        ColorPair(background: Color(hex: "E0F2C1"), foreground: Color(hex: "71A83B")), // Mint green
-        ColorPair(background: Color(hex: "FFDBCB"), foreground: Color(hex: "E56B4B")), // Peach
-        ColorPair(background: Color(hex: "D6E5FA"), foreground: Color(hex: "4A7FC1"))  // Sky blue
+    // Collection of 10 pastel color pairs with light and dark variants
+    static let pastelPairs: [ColorPairSet] = [
+        ColorPairSet(
+            light: ColorPair(background: Color(hex: "FFE2E2"), foreground: Color(hex: "F05454")), // Soft red
+            dark: ColorPair(background: Color(hex: "4A1A1A"), foreground: Color(hex: "FF6B6B"))
+        ),
+        ColorPairSet(
+            light: ColorPair(background: Color(hex: "FFEDDB"), foreground: Color(hex: "F0945E")), // Soft orange
+            dark: ColorPair(background: Color(hex: "4A2E1C"), foreground: Color(hex: "FFA876"))
+        ),
+        ColorPairSet(
+            light: ColorPair(background: Color(hex: "FFF8E1"), foreground: Color(hex: "EDAA25")), // Soft yellow
+            dark: ColorPair(background: Color(hex: "3D3620"), foreground: Color(hex: "F7C843"))
+        ),
+        ColorPairSet(
+            light: ColorPair(background: Color(hex: "E8F4D9"), foreground: Color(hex: "77AB59")), // Soft green
+            dark: ColorPair(background: Color(hex: "253A1D"), foreground: Color(hex: "8BC571"))
+        ),
+        ColorPairSet(
+            light: ColorPair(background: Color(hex: "D1EDF2"), foreground: Color(hex: "3D9FB4")), // Soft blue
+            dark: ColorPair(background: Color(hex: "1C3A3F"), foreground: Color(hex: "55B5CC"))
+        ),
+        ColorPairSet(
+            light: ColorPair(background: Color(hex: "D9D7F1"), foreground: Color(hex: "6A60A9")), // Soft purple
+            dark: ColorPair(background: Color(hex: "2A2440"), foreground: Color(hex: "9B8ED4"))
+        ),
+        ColorPairSet(
+            light: ColorPair(background: Color(hex: "F6D6EC"), foreground: Color(hex: "C2519A")), // Soft pink
+            dark: ColorPair(background: Color(hex: "3F1F34"), foreground: Color(hex: "E069B2"))
+        ),
+        ColorPairSet(
+            light: ColorPair(background: Color(hex: "E0F2C1"), foreground: Color(hex: "71A83B")), // Mint green
+            dark: ColorPair(background: Color(hex: "243A18"), foreground: Color(hex: "89C253"))
+        ),
+        ColorPairSet(
+            light: ColorPair(background: Color(hex: "FFDBCB"), foreground: Color(hex: "E56B4B")), // Peach
+            dark: ColorPair(background: Color(hex: "4A2B1F"), foreground: Color(hex: "FF8363"))
+        ),
+        ColorPairSet(
+            light: ColorPair(background: Color(hex: "D6E5FA"), foreground: Color(hex: "4A7FC1")), // Sky blue
+            dark: ColorPair(background: Color(hex: "1E2A3A"), foreground: Color(hex: "6297D9"))
+        )
     ]
     
     static func randomPastelPair(for text: String) -> ColorPair {
@@ -484,7 +514,21 @@ struct ColorPalette {
             // add the byte, then mod to keep it small
             (currentIndex + Int(byte)) % count
         }
-        return pastelPairs[idx]
+        return pastelPairs[idx].current
+    }
+}
+
+// Updated ColorPair structure to support light/dark modes
+struct ColorPairSet {
+    let light: ColorPair
+    let dark: ColorPair
+    
+    var current: ColorPair {
+        // This will be evaluated at runtime based on current appearance
+        ColorPair(
+            background: Color(light: light.background, dark: dark.background),
+            foreground: Color(light: light.foreground, dark: dark.foreground)
+        )
     }
 }
 

@@ -137,7 +137,7 @@ struct CommentSection: View {
                 .padding(.bottom, 16)
                 .id("commentInput") // ID for ScrollViewReader
             }
-            .background(Color.white)
+            .background(Color.appSurface)
             .cornerRadius(16)
             .shadow(color: Color.black.opacity(0.05), radius: 8, x: 0, y: 2)
             .onChange(of: viewModel.hasTopLevelComments) { _, hasComments in

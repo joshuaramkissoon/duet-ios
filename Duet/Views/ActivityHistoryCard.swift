@@ -276,7 +276,7 @@ struct ActivityHistoryCard: View {
         .frame(width: UIScreen.main.bounds.width - 32)
         .background(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(Color(.systemBackground))
+                .fill(Color.adaptiveCardBackground)
         )
         .shadow(color: Color.black.opacity(0.05), radius: 6, x: 0, y: 2)
         .padding(.vertical, 8)

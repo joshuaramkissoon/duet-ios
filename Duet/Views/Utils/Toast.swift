@@ -28,7 +28,7 @@ enum ToastState: Equatable {
         switch self {
         case .success:         return .green.opacity(0.7)
         case .error:           return .red.opacity(0.7)
-        case .loading:         return .white.opacity(0.8)
+        case .loading:         return .primary.opacity(0.8)
         }
     }
 
@@ -68,12 +68,16 @@ struct ToastView: View {
 
             Text(state.message)
                 .font(.subheadline.weight(.medium))
-                .foregroundColor(.white)
+                .foregroundColor(.primary)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
-        .background(Color.midnightSlate)
+        .background(Color.adaptiveCardBackground.opacity(0.95))
         .clipShape(Capsule())
+        .overlay(
+            Capsule()
+                .stroke(Color.primary.opacity(0.1), lineWidth: 1)
+        )
     }
 }
 

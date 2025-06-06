@@ -43,7 +43,7 @@ struct QuoteCard: View {
             ZStack {
                 // Layered background for depth
                 RoundedRectangle(cornerRadius: 16)
-                    .fill(Color.white)
+                    .fill(Color.appSurface)
                     .shadow(color: Color.black.opacity(0.05), radius: 8, x: 0, y: 4)
                 
                 // Decorative border on left side

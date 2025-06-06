@@ -4,6 +4,7 @@ import UserNotifications
 struct SettingsView: View {
     @EnvironmentObject private var authVM: AuthenticationViewModel
     @EnvironmentObject private var toast: ToastManager
+    @EnvironmentObject private var themeManager: ThemeManager
     @AppStorage("notificationsEnabled") private var notificationsEnabled = true
     @AppStorage("defaultPublishIdeas") private var publishIdeasEnabled = false // Changed to use UserDefaults and default to false
     
@@ -20,6 +21,35 @@ struct SettingsView: View {
     
     var body: some View {
         List {
+            // MARK: - Appearance Section
+            Section {
+                HStack {
+                    Image(systemName: "paintbrush")
+                        .foregroundColor(.appPrimary)
+                        .frame(width: 24)
+                    
+                    Text("Theme")
+                        .fontWeight(.medium)
+                    
+                    Spacer()
+                    
+                    Picker("", selection: $themeManager.currentTheme) {
+                        ForEach(ThemeMode.allCases, id: \.self) { theme in
+                            Text(theme.displayName).tag(theme)
+                        }
+                    }
+                    .pickerStyle(MenuPickerStyle())
+                    .tint(Color.adaptivePrimary)
+                }
+                .padding(.vertical, 4)
+            } header: {
+                Text("Appearance")
+            } footer: {
+                Text("Choose how the app looks. System follows your device settings.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            
             // MARK: - Notifications Section
             Section {
                 VStack(alignment: .leading, spacing: 8) {
@@ -237,6 +267,8 @@ struct SettingsView: View {
                 Text("Account")
             }
         }
+        .scrollContentBackground(.hidden)
+        .withAppBackground()
         .navigationTitle("Settings")
         .navigationBarTitleDisplayMode(.inline)
         .alert("Delete Account", isPresented: $showDeleteAccountAlert) {
@@ -317,5 +349,6 @@ struct SettingsView: View {
         SettingsView()
             .environmentObject(AuthenticationViewModel())
             .environmentObject(ToastManager())
+            .environmentObject(ThemeManager.shared)
     }
 } 

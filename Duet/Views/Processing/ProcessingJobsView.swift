@@ -723,13 +723,13 @@ struct ProcessingJobVideoCard: View {
     private var cardBackground: some View {
         switch job.status {
         case "downloading", "processing":
-            return Color.white
+            return Color.adaptiveCardBackground
         case "completed":
-            return Color(hex: "#E8F5E8") // Light green, non-transparent
+            return Color(light: Color(hex: "#E8F5E8"), dark: Color(hex: "#1F2A1F")) // Adaptive green tint
         case "failed":
-            return Color(hex: "#FFE8E8") // Light red, non-transparent
+            return Color(light: Color(hex: "#FFE8E8"), dark: Color(hex: "#2A1F1F")) // Adaptive red tint
         default:
-            return Color.gray.opacity(0.05)
+            return Color.adaptiveCardBackground
         }
     }
     

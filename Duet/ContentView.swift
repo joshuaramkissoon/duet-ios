@@ -58,7 +58,16 @@ struct ContentView: View {
             .tag(3)
         }
         .accentColor(.appPrimary)
+        .tint(.appPrimary)
         .onAppear {
+            // Configure tab bar appearance for better dark mode support
+            let appearance = UITabBarAppearance()
+            appearance.configureWithDefaultBackground()
+            appearance.stackedLayoutAppearance.selected.iconColor = UIColor(Color.appPrimary)
+            appearance.stackedLayoutAppearance.selected.titleTextAttributes = [.foregroundColor: UIColor(Color.appPrimary)]
+            UITabBar.appearance().standardAppearance = appearance
+            UITabBar.appearance().scrollEdgeAppearance = appearance
+            
             // Configure the shared processing manager
             processingManager.updateToast(toast)
             

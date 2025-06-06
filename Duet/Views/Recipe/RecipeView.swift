@@ -139,7 +139,7 @@ struct RecipeView: View {
                 ))
             }
         }
-        .background(Color.white)
+        .background(Color.adaptiveCardBackground)
         .cornerRadius(16)
         .shadow(color: Color.black.opacity(0.05), radius: 8, x: 0, y: 2)
         .onAppear {
@@ -243,15 +243,15 @@ struct RecipeInfoSection: View {
         var chips: [ChipData] = []
         
         if let cuisineType = recipeMetadata.cuisine_type {
-            chips.append(ChipData(icon: "globe", text: cuisineType.capitalized, color: Color(hex: "E3F2FD")))
+            chips.append(ChipData(icon: "globe", text: cuisineType.capitalized, color: Color.appSecondary))
         }
         
         if let difficulty = recipeMetadata.difficulty_level {
-            chips.append(ChipData(icon: "speedometer", text: difficulty.capitalized, color: Color(hex: "FFF3E0")))
+            chips.append(ChipData(icon: "speedometer", text: difficulty.capitalized, color: Color.appPrimary))
         }
         
         if let servings = recipeMetadata.servings {
-            chips.append(ChipData(icon: "person.2.fill", text: "Serves \(servings)", color: Color(hex: "E8F5E8")))
+            chips.append(ChipData(icon: "person.2.fill", text: "Serves \(servings)", color: Color.appAccent))
         }
         
         return chips
@@ -261,11 +261,11 @@ struct RecipeInfoSection: View {
         var chips: [ChipData] = []
         
         if let prepTime = recipeMetadata.prep_time {
-            chips.append(ChipData(icon: "clock", text: "Prep: \(prepTime)", color: Color(hex: "F3E5F5")))
+            chips.append(ChipData(icon: "clock", text: "Prep: \(prepTime)", color: Color.darkPurple))
         }
         
         if let cookTime = recipeMetadata.cook_time {
-            chips.append(ChipData(icon: "flame", text: "Cook: \(cookTime)", color: Color(hex: "F3E5F5")))
+            chips.append(ChipData(icon: "flame", text: "Cook: \(cookTime)", color: Color.warmOrange))
         }
         
         return chips

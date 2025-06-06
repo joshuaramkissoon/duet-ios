@@ -1,8 +1,24 @@
 import SwiftUI
 
 extension Color {
-    static let appBackground = Color(hex: "F8F5F2")
-    static let appPrimary = Color(hex: "E88D67")
+    // Main app background - darker slate for better dark mode aesthetic
+    static let appBackground = Color(light: Color(hex: "F8F5F2"), dark: Color(hex: "0F1419"))
+    static let appPrimary = Color(light: Color(hex: "E88D67"), dark: Color(hex: "FF9A7A"))
+    
+    // Card backgrounds - slightly lighter than app background for contrast
+    static let adaptiveCardBackground = Color(light: Color(hex: "FFFFFF"), dark: Color(hex: "1A1F2A"))
+    
+    /// Creates a color that adapts to light and dark appearance
+    init(light: Color, dark: Color) {
+        self.init(UIColor { traitCollection in
+            switch traitCollection.userInterfaceStyle {
+            case .dark:
+                return UIColor(dark)
+            default:
+                return UIColor(light)
+            }
+        })
+    }
 }
 
 extension Color {

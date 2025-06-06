@@ -287,7 +287,7 @@ struct ProfileView: View {
             .padding()
             .background(
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .fill(Color(.systemBackground))
+                    .fill(Color.adaptiveCardBackground)
                     .shadow(color: Color.black.opacity(0.05), radius: 6, x: 0, y: 2)
             )
         }
@@ -336,7 +336,7 @@ struct ProfileView: View {
             .padding()
             .background(
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .fill(Color(.systemBackground))
+                    .fill(Color.adaptiveCardBackground)
                     .shadow(color: Color.black.opacity(0.05), radius: 6, x: 0, y: 2)
             )
         }

@@ -40,7 +40,7 @@ struct URLInputView: View {
             
             ZStack {
                 RoundedRectangle(cornerRadius: 12)
-                    .fill(Color.white)
+                    .fill(Color.adaptiveCardBackground)
                     .shadow(color: Color.black.opacity(0.1), radius: 10, x: 0, y: 5)
                 
                 VStack(spacing: 0) {

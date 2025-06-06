@@ -13,7 +13,7 @@ struct CardStyle: ViewModifier {
     func body(content: Content) -> some View {
         content
             .padding()
-            .background(Color.white)
+            .background(Color.appSurface)
             .cornerRadius(16)
             .shadow(color: Color.black.opacity(0.05), radius: 8, x: 0, y: 4)
     }
@@ -34,7 +34,7 @@ struct SecondaryButtonStyle: ViewModifier {
     func body(content: Content) -> some View {
         content
             .padding()
-            .background(Color.white)
+            .background(Color.appSurface)
             .foregroundColor(Color.appPrimary)
             .cornerRadius(12)
             .overlay(

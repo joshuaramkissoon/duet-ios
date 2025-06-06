@@ -7,51 +7,92 @@
 import SwiftUI
 
 extension Color {
-    // Main app colors - defined directly with RGB values
-    static let appBackground = Color(hex: "F8F5F2") // Soft cream background
-    static let appPrimary = Color(hex: "E88D67")    // Warm coral/peach
-    static let appSecondary = Color(hex: "6DC0D5")  // Soft blue
-    static let appAccent = Color(hex: "7FB069")     // Soft green
-    static let appText = Color(hex: "2E2E2E")       // Off-black for text
+    // MARK: - Adaptive App Colors
+    // These colors automatically adapt to light/dark mode with darker slate aesthetic
+    static let appBackground = Color.adaptiveAppBackground // Use custom slate background
+    static let appPrimary = Color.adaptivePrimary
+    static let appSecondary = Color.adaptiveSecondary
+    static let appAccent = Color.adaptiveAccent
+    static let appText = Color(.label) // Use system label color
     
-    // Semantic aliases that use existing colors
-    static let appSurface = Color.white
-    static let appError = Color.red
-    static let appSuccess = Color.green
-    static let appDivider = Color.gray.opacity(0.2)
-    static let appPrimaryLightBackground = Color.appPrimary.opacity(0.1) // Light primary background for buttons
-    static let appSecondaryLightBackground = Color.appSecondary.opacity(0.1) // Light secondary background
-    static let appAccentLightBackground = Color.appAccent.opacity(0.1) // Light accent background
-    static let warmOrange = Color(hex: "E88D67")
-    static let softCream = Color(hex: "F8F5F2")
+    // MARK: - Fallback Adaptive Colors
+    // These provide good light/dark mode defaults with slate aesthetic
+    static var adaptiveBackground: Color {
+        Color(light: Color(hex: "F8F5F2"), dark: Color(hex: "1C1C1E"))
+    }
     
-    // Pastel colors for UI elements
-    static let lightLavender = Color(hex: "D9D7F1")  // Light lavender background
-    static let darkPurple = Color(hex: "6A60A9")     // Darker purple for text/icons
+    // Main app background - darker slate for better dark mode aesthetic
+    static var adaptiveAppBackground: Color {
+        Color(light: Color(hex: "F8F5F2"), dark: Color(hex: "0F1419")) // Dark slate blue-gray
+    }
     
-    /// Deep midnight slate with blue undertones - recommended
-    static let midnightSlate = Color(hex: "1E293B")
+    // Card backgrounds - slightly lighter than app background for contrast
+    static var adaptiveCardBackground: Color {
+        Color(light: Color(.systemBackground), dark: Color(hex: "1A1F2A")) // Lighter slate for cards
+    }
     
-    /// Warmer midnight slate with slight purple tint
-    static let midnightSlateWarm = Color(hex: "1F2937")
+    static var adaptivePrimary: Color {
+        Color(light: Color(hex: "E88D67"), dark: Color(hex: "FF9A7A"))
+    }
     
-    /// Classic midnight slate - pure and clean
-    static let midnightSlateClassic = Color(hex: "0F172A")
+    static var adaptiveSecondary: Color {
+        Color(light: Color(hex: "6DC0D5"), dark: Color(hex: "7DD3F0"))
+    }
     
-    /// Softer midnight slate with gray undertones
-    static let midnightSlateSoft = Color(hex: "334155")
+    static var adaptiveAccent: Color {
+        Color(light: Color(hex: "7FB069"), dark: Color(hex: "90C47A"))
+    }
     
-    /// Rich midnight slate with deeper saturation
-    static let midnightSlateRich = Color(hex: "0C1220")
+    static var adaptiveText: Color {
+        Color(light: Color(hex: "2E2E2E"), dark: Color(hex: "E8E8E8"))
+    }
+    
+    // MARK: - Semantic Colors
+    static let appSurface = Color.adaptiveCardBackground // Use custom card background
+    static let appSecondaryBackground = Color(.secondarySystemBackground)
+    static let appError = Color(.systemRed)
+    static let appSuccess = Color(.systemGreen)
+    static let appDivider = Color(.separator)
+    static let appPrimaryLightBackground = Color.appPrimary.opacity(0.1)
+    static let appSecondaryLightBackground = Color.appSecondary.opacity(0.1)
+    static let appAccentLightBackground = Color.appAccent.opacity(0.1)
+    static let warmOrange = Color.adaptivePrimary
+    static let softCream = Color(.systemGroupedBackground)
+    
+    // MARK: - Legacy Colors (for backward compatibility)
+    static let lightLavender = Color(light: Color(hex: "D9D7F1"), dark: Color(hex: "2A2440"))
+    static let darkPurple = Color(light: Color(hex: "6A60A9"), dark: Color(hex: "9B8ED4"))
+    
+    // Midnight slate variants (now adaptive)
+    static let midnightSlate = Color(light: Color(hex: "1E293B"), dark: Color(.label))
+    static let midnightSlateWarm = Color(light: Color(hex: "1F2937"), dark: Color(.secondaryLabel))
+    static let midnightSlateClassic = Color(light: Color(hex: "0F172A"), dark: Color(.label))
+    static let midnightSlateSoft = Color(light: Color(hex: "334155"), dark: Color(.secondaryLabel))
+    static let midnightSlateRich = Color(light: Color(hex: "0C1220"), dark: Color(.label))
+}
+
+// MARK: - Light/Dark Color Helper
+extension Color {
+    /// Creates a color that adapts to light and dark appearance
+    init(light: Color, dark: Color) {
+        self.init(UIColor { traitCollection in
+            switch traitCollection.userInterfaceStyle {
+            case .dark:
+                return UIColor(dark)
+            default:
+                return UIColor(light)
+            }
+        })
+    }
 }
 
 // For quick testing without creating assets, you can use these fallbacks:
 extension Color {
-    static var fallbackAppBackground: Color { Color(hex: "F8F5F2") }
-    static var fallbackAppPrimary: Color { Color(hex: "E88D67") }
-    static var fallbackAppSecondary: Color { Color(hex: "6DC0D5") }
-    static var fallbackAppAccent: Color { Color(hex: "7FB069") }
-    static var fallbackAppText: Color { Color(hex: "2E2E2E") }
+    static var fallbackAppBackground: Color { Color(.systemGroupedBackground) }
+    static var fallbackAppPrimary: Color { Color.adaptivePrimary }
+    static var fallbackAppSecondary: Color { Color.adaptiveSecondary }
+    static var fallbackAppAccent: Color { Color.adaptiveAccent }
+    static var fallbackAppText: Color { Color(.label) }
 }
 
 // MARK: - Background View Modifier
@@ -78,12 +119,15 @@ extension View {
 
 // MARK: - Root View Modifier (Apply to your main ContentView)
 struct AppThemeModifier: ViewModifier {
+    @StateObject private var themeManager = ThemeManager.shared
+    
     func body(content: Content) -> some View {
         content
             .withAppBackground()
             .accentColor(.appPrimary)
             .foregroundColor(.appText)
-            .preferredColorScheme(.light) // Or use a state to toggle
+            .preferredColorScheme(themeManager.currentTheme.colorScheme)
+            .environmentObject(themeManager)
     }
 }
 

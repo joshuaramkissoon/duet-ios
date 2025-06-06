@@ -105,7 +105,7 @@ struct CreditsView: View {
         .padding(24)
         .background(
             RoundedRectangle(cornerRadius: 12)
-                .fill(.white)
+                .fill(Color.appSurface)
                 .shadow(color: .black.opacity(0.05), radius: 10, x: 0, y: 2)
         )
     }
@@ -176,7 +176,7 @@ struct CreditsView: View {
         .padding(20)
         .background(
             RoundedRectangle(cornerRadius: 12)
-                .fill(.white)
+                .fill(Color.appSurface)
                 .shadow(color: .black.opacity(0.03), radius: 5, x: 0, y: 1)
         )
     }
@@ -234,7 +234,7 @@ struct CreditsView: View {
         .padding(20)
         .background(
             RoundedRectangle(cornerRadius: 12)
-                .fill(.white)
+                .fill(Color.appSurface)
                 .shadow(color: .black.opacity(0.03), radius: 5, x: 0, y: 1)
         )
     }
@@ -708,7 +708,7 @@ struct CreditPackageCard: View {
     
     private var cardBackground: some View {
         RoundedRectangle(cornerRadius: 12)
-            .fill(.white)
+            .fill(Color.appSurface)
             .stroke(strokeColor, lineWidth: 1)
             .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 2)
     }

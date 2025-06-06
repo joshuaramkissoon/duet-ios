@@ -153,7 +153,7 @@ struct ExploreView: View {
                 .padding(.vertical, 12)
                 .background(
                     RoundedRectangle(cornerRadius: 16)
-                        .fill(Color(.systemBackground))
+                        .fill(Color.adaptiveCardBackground)
                         .shadow(color: Color.black.opacity(0.08), radius: 8, x: 0, y: 2)
                 )
                 
@@ -243,7 +243,7 @@ struct PresetQueryCard: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(
                     RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .fill(Color(.systemBackground))
+                        .fill(Color.adaptiveCardBackground)
                         .overlay(
                             RoundedRectangle(cornerRadius: 12, style: .continuous)
                                 .stroke(Color.appPrimary.opacity(0.2), lineWidth: 1)
@@ -663,7 +663,7 @@ struct ExploreCard: View {
         .padding()
         .background(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(Color(.systemBackground))
+                .fill(Color.adaptiveCardBackground)
         )
         .shadow(color: Color.black.opacity(0.05), radius: 6, x: 0, y: 2)
     }

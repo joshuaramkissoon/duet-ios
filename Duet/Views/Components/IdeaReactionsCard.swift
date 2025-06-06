@@ -39,7 +39,7 @@ struct IdeaReactionsCard: View {
         .padding(16)
         .background(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(Color(.systemBackground))
+                .fill(Color.adaptiveCardBackground)
                 .shadow(color: Color.black.opacity(0.05), radius: 6, x: 0, y: 2)
         )
         .animation(.easeInOut(duration: 0.25), value: showEmojiSelector)
@@ -189,7 +189,7 @@ struct IdeaReactionsCard: View {
         }
         .background(
             RoundedRectangle(cornerRadius: 16)
-                .fill(Color(.systemBackground))
+                .fill(Color.adaptiveCardBackground)
                 .shadow(color: .black.opacity(0.1), radius: 8, x: 0, y: 4)
         )
     }

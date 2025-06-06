@@ -114,7 +114,7 @@ struct ItineraryView: View {
                 ))
             }
         }
-        .background(Color.white)
+        .background(Color.adaptiveCardBackground)
         .cornerRadius(16)
         .shadow(color: Color.black.opacity(0.05), radius: 8, x: 0, y: 2)
         .onAppear {
@@ -200,16 +200,16 @@ struct ItineraryOverviewSection: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
                     if !itineraryItems.isEmpty {
-                        OverviewChip(icon: "calendar", text: "\(itineraryItems.count) Activities", color: Color(hex: "E3F2FD")) // Soft blue
+                        OverviewChip(icon: "calendar", text: "\(itineraryItems.count) Activities", color: Color.appSecondary)
                     }
                     
                     if !requiredItems.isEmpty {
-                        OverviewChip(icon: "bag", text: "\(requiredItems.count) Items", color: Color(hex: "E8F5E8")) // Soft green
+                        OverviewChip(icon: "bag", text: "\(requiredItems.count) Items", color: Color.appAccent)
                     }
                     
                     // Show total duration if available
                     if !totalDuration.isEmpty {
-                        OverviewChip(icon: "clock", text: totalDuration, color: Color(hex: "F3E5F5")) // Soft purple
+                        OverviewChip(icon: "clock", text: totalDuration, color: Color.darkPurple)
                     }
                 }
                 .padding(.horizontal, 1) // Small padding to prevent clipping
