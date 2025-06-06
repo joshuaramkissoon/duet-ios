@@ -49,6 +49,16 @@ class ActivityHistoryViewModel: ObservableObject {
                 self.updateIdeaMetadata(ideaId: ideaId, updatedIdea: updatedIdea)
             }
             .store(in: &cancellables)
+        
+        // Listen for idea deletions
+        NotificationCenter.default.publisher(for: .ideaDeleted)
+            .sink { [weak self] notification in
+                guard let self = self,
+                      let ideaId = notification.userInfo?["ideaId"] as? String else { return }
+                
+                self.removeDeletedIdea(ideaId: ideaId)
+            }
+            .store(in: &cancellables)
     }
     
     private func updateIdeaVisibility(ideaId: String, isPublic: Bool) {
@@ -107,6 +117,16 @@ class ActivityHistoryViewModel: ObservableObject {
         if let searchIndex = searchResults.firstIndex(where: { $0.id == ideaId }) {
             searchResults[searchIndex] = updatedIdea
         }
+    }
+    
+    private func removeDeletedIdea(ideaId: String) {
+        // Remove from activities array
+        activities.removeAll { $0.id == ideaId }
+        
+        // Remove from search results array
+        searchResults.removeAll { $0.id == ideaId }
+        
+        print("🗑️ ActivityHistoryViewModel: Removed deleted idea \(ideaId)")
     }
     
     func loadActivities() {

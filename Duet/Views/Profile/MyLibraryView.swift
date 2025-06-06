@@ -24,6 +24,8 @@ struct MyLibraryView: View {
     @State private var isTagFilterExpanded = false
     @State private var ideaToDelete: DateIdeaResponse?
     @State private var showDeleteConfirmation = false
+    @State private var selectedActivity: DateIdeaResponse?
+    @State private var showDetailView = false
     
     // Computed property to get all unique tags from current display items
     // This automatically switches between all ideas and search results based on search state
@@ -93,6 +95,18 @@ struct MyLibraryView: View {
                         }
                     }
                 }
+                .navigationDestination(isPresented: $showDetailView) {
+                    if let selectedActivity = selectedActivity {
+                        DateIdeaDetailView(
+                            dateIdea: selectedActivity,
+                            onImmersiveToggle: {
+                                // Do nothing - we don't want immersive mode in library
+                            },
+                            viewModel: DateIdeaViewModel(toast: ToastManager(), videoUrl: selectedActivity.cloudFrontVideoURL)
+                        )
+                        .navigationBarBackButtonHidden(false)
+                    }
+                }
         }
         .navigationBarHidden(true)  // Hide outer nav bar to prevent double bars
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { notification in
@@ -129,6 +143,24 @@ struct MyLibraryView: View {
                     // viewModel.backgroundLoadUserIdeas()
                 }
             }
+        }
+        .confirmationDialog(
+            "Delete Idea",
+            isPresented: $showDeleteConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Delete", role: .destructive) {
+                if let ideaToDelete = ideaToDelete {
+                    Task {
+                        await deleteIdea(ideaToDelete)
+                    }
+                }
+            }
+            Button("Cancel", role: .cancel) {
+                ideaToDelete = nil
+            }
+        } message: {
+            Text("This action cannot be undone. The idea will be permanently deleted.")
         }
     }
 
@@ -312,49 +344,30 @@ struct MyLibraryView: View {
     
     @ViewBuilder
     private var contentItems: some View {
-        LazyVStack(spacing: 16) {
-            ForEach(filteredIdeas, id: \.id) { activity in
-                ActivityHistoryCard(
-                    activity: activity,
-                    onDelete: { 
-                        ideaToDelete = activity
-                        showDeleteConfirmation = true
-                    }
-                )
-                .onAppear {
-                    // Load next page when approaching the end (for user ideas only)
-                    if !viewModel.isSearchActive && 
-                       activity.id == viewModel.userIdeas.last?.id {
-                        viewModel.loadNextUserIdeasPage()
-                    }
+        LibraryMasonryGrid(
+            activities: filteredIdeas,
+            onVideoTap: { activity, _ in
+                selectedActivity = activity
+                showDetailView = true
+            },
+            onDeleteTap: { activity in
+                ideaToDelete = activity
+                showDeleteConfirmation = true
+            },
+            onLoadMore: {
+                // Load next page when approaching the end (for user ideas only)
+                if !viewModel.isSearchActive {
+                    viewModel.loadNextUserIdeasPage()
                 }
             }
-            
-            // Loading indicator for pagination
-            if !viewModel.isSearchActive && viewModel.hasMorePages && viewModel.isLoadingUserIdeas {
-                ProgressView()
-                    .padding()
-            }
-        }
-        .padding(.horizontal, 20)
+        )
+        .padding(.horizontal, 16)
         .padding(.bottom, 20)
-        .confirmationDialog(
-            "Delete Idea",
-            isPresented: $showDeleteConfirmation,
-            titleVisibility: .visible
-        ) {
-            Button("Delete", role: .destructive) {
-                if let idea = ideaToDelete {
-                    Task {
-                        await deleteIdea(idea)
-                    }
-                }
-            }
-            Button("Cancel", role: .cancel) {
-                ideaToDelete = nil
-            }
-        } message: {
-            Text("Are you sure you want to delete this idea? This action cannot be undone.")
+        
+        // Loading indicator for pagination
+        if !viewModel.isSearchActive && viewModel.hasMorePages && viewModel.isLoadingUserIdeas {
+            ProgressView()
+                .padding()
         }
     }
     
@@ -366,14 +379,6 @@ struct MyLibraryView: View {
             let _: EmptyResponse = try await NetworkClient.shared.deleteJSON(url: endpoint)
             
             await MainActor.run {
-                // Remove from local state
-                viewModel.userIdeas.removeAll { $0.id == activity.id }
-                
-                // Also remove from search results if in search mode
-                if viewModel.isSearchActive {
-                    viewModel.searchResults.removeAll { $0.id == activity.id }
-                }
-                
                 // Clear the delete state
                 ideaToDelete = nil
                 
@@ -383,6 +388,7 @@ struct MyLibraryView: View {
                 print("🗑️ Deleted idea: \(activity.id)")
                 
                 // Notify other parts of the app that an idea was deleted
+                // This will trigger MyLibraryViewModel and other view models to update their local state
                 NotificationCenter.default.post(
                     name: .ideaDeleted,
                     object: nil,
@@ -403,32 +409,319 @@ struct MyLibraryView: View {
     }
 }
 
-// MARK: - Reusable Preset Query Cards Section
-struct PresetQueryCardsSection: View {
-    let presetQueries: [String]
-    let onQueryTap: (String) -> Void
+// MARK: - Library Masonry Grid View
+struct LibraryMasonryGrid: View {
+    let activities: [DateIdeaResponse]
+    let onVideoTap: (DateIdeaResponse, Int) -> Void
+    let onDeleteTap: (DateIdeaResponse) -> Void
+    let onLoadMore: () -> Void
+    
+    private let columns = Array(repeating: GridItem(.flexible(), spacing: 8), count: 2)
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Popular searches")
-                .font(.headline)
-                .fontWeight(.semibold)
-                .foregroundColor(.primary)
-                .padding(.horizontal, 4)
-            
-            LazyVGrid(columns: [
-                GridItem(.flexible(), spacing: 8),
-                GridItem(.flexible(), spacing: 8)
-            ], spacing: 8) {
-                ForEach(presetQueries, id: \.self) { query in
-                    PresetQueryCard(query: query) {
-                        onQueryTap(query)
+        LazyVGrid(columns: columns, spacing: 8) {
+            ForEach(Array(activities.enumerated()), id: \.element.id) { index, activity in
+                LibraryMasonryCard(
+                    activity: activity,
+                    onTap: {
+                        onVideoTap(activity, index)
+                    },
+                    onDelete: {
+                        onDeleteTap(activity)
+                    }
+                )
+                .onAppear {
+                    // Load more when approaching the end
+                    if index >= activities.count - 4 {
+                        onLoadMore()
                     }
                 }
             }
         }
     }
 }
+
+// MARK: - Library Masonry Card View (with delete option)
+struct LibraryMasonryCard: View {
+    @EnvironmentObject private var authVM: AuthenticationViewModel
+    let activity: DateIdeaResponse
+    let onTap: () -> Void
+    let onDelete: () -> Void
+    
+    @State private var authorUser: User?
+    @State private var isLoadingAuthor = false
+    
+    // Video playing state
+    @State private var player: AVQueuePlayer?
+    @State private var looping: LoopingPlayer?
+    @State private var isActive = false
+    @State private var showVideo = false
+    @State private var loadingTask: Task<Void, Never>?
+    
+    var body: some View {
+        Button(action: onTap) {
+            VStack(spacing: 0) {
+                // Video/thumbnail with aspect ratio
+                ZStack {
+                    // Show video only while it's actively playing. Fade using `showVideo`.
+                    if isActive, let player {
+                        VideoPlayer(player: player)
+                            .aspectRatio(contentMode: .fill)
+                            .opacity(showVideo ? 1 : 0)
+                    }
+
+                    // Show thumbnail whenever video is not active or until the fade completes.
+                    if !isActive || !showVideo {
+                        AsyncImage(url: URL(string: activity.thumbnail_url ?? "")) { image in
+                            image
+                                .resizable()
+                                .aspectRatio(contentMode: .fill)
+                        } placeholder: {
+                            if let tb64 = activity.thumbnail_b64 {
+                                Base64ImageView(base64String: tb64, thumbWidth: cardWidth, thumbHeight: cardHeight)
+                            } else {
+                                PlaceholderImageView(thumbWidth: cardWidth, thumbHeight: cardHeight)
+                            }
+                        }
+                    }
+                }
+                .frame(width: cardWidth, height: cardHeight)
+                .clipped()
+                .overlay(
+                    VisibilityDetector { visible in
+                        Task { await updateActivity(visible: visible) }
+                    }
+                )
+                .overlay(
+                    // Text overlay with gradient
+                    VStack {
+                        Spacer()
+                        
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(activity.summary.title)
+                                .font(.subheadline)
+                                .fontWeight(.semibold)
+                                .foregroundColor(.white)
+                                .lineLimit(2)
+                                .multilineTextAlignment(.leading)
+                            
+                            if let userId = activity.user_id, let userName = activity.user_name {
+                                let currentUserId = authVM.user?.uid
+                                let displayName = userId == currentUserId ? "You" : userName
+                                
+                                HStack(spacing: 6) {
+                                    if let user = authorUser {
+                                        ProfileImage(user: user, diam: 16)
+                                    }
+                                    
+                                    Text(displayName)
+                                        .font(.caption)
+                                        .fontWeight(.medium)
+                                        .foregroundColor(.white.opacity(0.9))
+                                    
+                                    Spacer()
+                                }
+                            }
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.bottom, 12)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(
+                            LinearGradient(
+                                gradient: Gradient(colors: [
+                                    Color.clear,
+                                    Color.black.opacity(0.3),
+                                    Color.black.opacity(0.7)
+                                ]),
+                                startPoint: .top,
+                                endPoint: .bottom
+                            )
+                        )
+                    }
+                )
+            }
+        }
+        .buttonStyle(.plain)
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
+        .contextMenu {
+            Button(role: .destructive) {
+                onDelete()
+            } label: {
+                Label("Delete Idea", systemImage: "trash")
+            }
+        }
+        .onAppear {
+            fetchAuthorUserIfNeeded()
+        }
+        .onDisappear {
+            // Cancel any ongoing loading task
+            loadingTask?.cancel()
+            loadingTask = nil
+            
+            if let lp = looping {
+                SmallPlayerPool.shared.recycle(lp.player)
+                looping = nil
+                player = nil
+            }
+        }
+    }
+    
+    private var cardWidth: CGFloat {
+        // Screen width minus padding and spacing
+        (UIScreen.main.bounds.width - 32 - 8) / 2
+    }
+    
+    private var cardHeight: CGFloat {
+        if let metadata = activity.videoMetadata {
+            return cardWidth / metadata.aspectRatio
+        } else {
+            // Default to square for unknown aspect ratios
+            return cardWidth
+        }
+    }
+    
+    @MainActor
+    private func stopPlayback() {
+        // Cancel any ongoing loading task first
+        loadingTask?.cancel()
+        loadingTask = nil
+        
+        if let lp = looping {
+            lp.player.pause()
+            SmallPlayerPool.shared.recycle(lp.player)
+            looping = nil
+            player = nil
+        }
+        isActive = false
+        showVideo = false
+    }
+    
+    private func updateActivity(visible: Bool) {
+        guard visible else {
+            showVideo = false
+            Task { await MainActor.run { stopPlayback() } }
+            return
+        }
+
+        // Already set up? Just flag active and ensure muted.
+        if let existingLooping = looping {
+            existingLooping.player.isMuted = true // Ensure always muted
+            return
+        }
+
+        // Cancel any existing loading task before starting a new one
+        loadingTask?.cancel()
+        
+        loadingTask = Task {               // runs on a background executor by default
+            do {
+                // Check if task was cancelled before proceeding
+                try Task.checkCancellation()
+                
+                // 1️⃣  Fetch or download file (inside VideoCache actor)
+                guard let remote = URL(string: activity.cloudFrontVideoURL) else { return }
+                let local = try await VideoCache.shared.localFile(for: remote)
+
+                // Check cancellation again after potentially long-running operation
+                try Task.checkCancellation()
+
+                // 2️⃣  Get (or build) asset — heavy work is inside AssetPool actor
+                let asset = try await AssetPool.shared.asset(for: local)
+
+                // Check cancellation one more time before UI updates
+                try Task.checkCancellation()
+
+                // 3️⃣  Hop to MainActor for the lightweight player wiring
+                await MainActor.run {
+                    // Double-check that we haven't been cancelled and state is still valid
+                    guard !Task.isCancelled, looping == nil else {
+                        print("🚫 Video setup cancelled or already configured")
+                        return
+                    }
+                    
+                    let queue = SmallPlayerPool.shared.obtain()
+                    let item = AVPlayerItem(asset: asset)
+                    looping = LoopingPlayer(player: queue, item: item)
+
+                    // ALWAYS ensure muted - multiple safeguards
+                    queue.isMuted = true
+                    queue.volume = 0.0
+                    
+                    queue.play()
+                    player = queue
+                    isActive = true
+
+                    // delay thumbnail removal by 0.3 s
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                        withAnimation(.easeInOut(duration: 0.15)) {
+                            showVideo = true             // fade thumbnail out
+                        }
+                        
+                        // Double-check muted state after a delay
+                        queue.isMuted = true
+                        queue.volume = 0.0
+                    }
+                }
+            } catch is CancellationError {
+                // Task was cancelled, this is expected behavior
+                print("🚫 Video loading cancelled")
+            } catch {
+                print("❌ video load:", error)
+            }
+        }
+    }
+    
+    private func fetchAuthorUserIfNeeded() {
+        guard let userId = activity.user_id else { return }
+        
+        if authorUser != nil || isLoadingAuthor { return }
+        
+        if let cachedUser = UserCache.shared.getUser(id: userId, allowStaleProfileData: false) {
+            authorUser = cachedUser
+            return
+        }
+        
+        isLoadingAuthor = true
+        NetworkClient.shared.getUsers(with: [userId], forceRefreshStaleProfiles: true) { result in
+            DispatchQueue.main.async {
+                self.isLoadingAuthor = false
+                switch result {
+                case .success(let users):
+                    self.authorUser = users.first ?? User(id: userId, name: self.activity.user_name)
+                case .failure:
+                    self.authorUser = User(id: userId, name: self.activity.user_name)
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Reusable Preset Query Cards Section
+//struct PresetQueryCardsSection: View {
+//    let presetQueries: [String]
+//    let onQueryTap: (String) -> Void
+//    
+//    var body: some View {
+//        VStack(alignment: .leading, spacing: 12) {
+//            Text("Popular searches")
+//                .font(.headline)
+//                .fontWeight(.semibold)
+//                .foregroundColor(.primary)
+//                .padding(.horizontal, 4)
+//            
+//            LazyVGrid(columns: [
+//                GridItem(.flexible(), spacing: 8),
+//                GridItem(.flexible(), spacing: 8)
+//            ], spacing: 8) {
+//                ForEach(presetQueries, id: \.self) { query in
+//                    PresetQueryCard(query: query) {
+//                        onQueryTap(query)
+//                    }
+//                }
+//            }
+//        }
+//    }
+//}
 
 // MARK: - Loading and Empty States
 struct LoadingLibraryView: View {

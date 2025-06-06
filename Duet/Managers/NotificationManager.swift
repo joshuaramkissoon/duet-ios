@@ -289,4 +289,5 @@ extension NotificationManager: UNUserNotificationCenterDelegate {
 extension Notification.Name {
     static let openCompletedIdea = Notification.Name("openCompletedIdea")
     static let userProfileUpdated = Notification.Name("userProfileUpdated")
+    static let exploreTabTapped = Notification.Name("exploreTabTapped")
 } 

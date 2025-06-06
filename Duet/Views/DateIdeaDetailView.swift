@@ -14,6 +14,7 @@ struct DateIdeaDetailView: View {
     var groupId: String? = nil
     var scrollToComments: Bool = false
     var hideNavigationBar: Bool = false
+    var onImmersiveToggle: (() -> Void)? = nil
     
     @EnvironmentObject private var toastManager: ToastManager
     @EnvironmentObject private var authVM: AuthenticationViewModel
@@ -290,7 +291,9 @@ struct DateIdeaDetailView: View {
                 }
             }
             .toolbar {
+                // Only show the options menu for now (remove Watch button)
                 ToolbarItem(placement: .navigationBarTrailing) {
+                    // Options menu
                     Menu {
                         if let src = currentDateIdeaResponse.original_source_url,
                            let url = URL(string: src) {
@@ -310,6 +313,7 @@ struct DateIdeaDetailView: View {
                     } label: {
                         Image(systemName: "ellipsis")
                             .rotationEffect(.degrees(90))
+                            .foregroundColor(.secondary)
                             .accessibilityLabel("Options")
                     }
                 }

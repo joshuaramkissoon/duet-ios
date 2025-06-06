@@ -34,7 +34,6 @@ struct ContentView: View {
             NavigationView {
                 ExploreView(viewModel: exploreVM)
                     .withAppBackground()
-                    .navigationTitle("Explore")
             }
             .tabItem {
                 Label("Explore", systemImage: "magnifyingglass")
@@ -59,6 +58,12 @@ struct ContentView: View {
         }
         .accentColor(.appPrimary)
         .tint(.appPrimary)
+        .onChange(of: navigationManager.selectedTab) { oldValue, newValue in
+            // If tapping the explore tab while already on explore tab, reset to root
+            if oldValue == 1 && newValue == 1 {
+                NotificationCenter.default.post(name: .exploreTabTapped, object: nil)
+            }
+        }
         .onAppear {
             // Configure tab bar appearance for better dark mode support
             let appearance = UITabBarAppearance()

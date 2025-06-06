@@ -44,7 +44,7 @@ enum NetworkError: Error {
 class NetworkClient: NSObject {
     static let shared = NetworkClient()
    let baseUrl = "https://duet-backend-490xp.kinsta.app" // Made public for ProcessingManager
-    // let baseUrl = "https://121c3bb08c2d.ngrok.app"
+//     let baseUrl = "https://121c3bb08c2d.ngrok.app"
     
     private override init() {}
     
@@ -410,7 +410,7 @@ class NetworkClient: NSObject {
     func getFeed(page: Int = 1, pageSize: Int = 20, completion: @escaping (Result<PaginatedFeedResponse, NetworkError>) -> Void) {
         Task {
             do {
-                // Get Firebase auth token as feed now requires authentication for user blocking
+                // Get Firebase auth token
                 guard let currentUser = Auth.auth().currentUser else {
                     completion(.failure(.unknown("User not authenticated")))
                     return

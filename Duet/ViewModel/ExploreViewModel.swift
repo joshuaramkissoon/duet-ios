@@ -63,7 +63,7 @@ class ExploreViewModel: ObservableObject {
     
     private func setupSearchDebouncing() {
         $query
-            .debounce(for: .milliseconds(1000), scheduler: RunLoop.main) // More conservative: 1 second
+            .debounce(for: .milliseconds(700), scheduler: RunLoop.main) // Wait 0.7s after user stops typing
             .removeDuplicates()
             .sink { [weak self] searchText in
                 let trimmed = searchText.trimmingCharacters(in: .whitespaces)
@@ -305,7 +305,7 @@ class ExploreViewModel: ObservableObject {
         performSearch()
     }
     
-    private func clearSearch() {
+    func clearSearch() {
         searchResults = []
         hasSearched = false
         errorMessage = nil

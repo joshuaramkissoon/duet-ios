@@ -24,6 +24,9 @@ struct GroupDetailView: View {
     @State private var showingIdeasSearch = false
     @State private var ideasSearchQuery = ""
     
+    // Navigation state for ideas
+    @State private var selectedActivity: DateIdeaResponse?
+    @State private var showDetailView = false
 
     init(group: DuetGroup) {
         _viewModel = StateObject(wrappedValue: GroupDetailViewModel(group: group))
@@ -121,7 +124,11 @@ struct GroupDetailView: View {
                         showingSearch: showingIdeasSearch,
                         onShowSearch: showIdeasSearch,
                         onHideSearch: hideIdeasSearch,
-                        searchQuery: $ideasSearchQuery
+                        searchQuery: $ideasSearchQuery,
+                        onVideoTap: { activity, index in
+                            selectedActivity = activity
+                            showDetailView = true
+                        }
                     )
                         .environmentObject(toast)
                         .environmentObject(processingManager)
@@ -228,6 +235,16 @@ struct GroupDetailView: View {
             }
         }
         .withAppBackground()
+        .navigationDestination(isPresented: $showDetailView) {
+            if let selectedActivity = selectedActivity {
+                DateIdeaDetailView(
+                    dateIdea: selectedActivity,
+                    groupId: viewModel.group.id,
+                    viewModel: DateIdeaViewModel(toast: ToastManager(), videoUrl: selectedActivity.cloudFrontVideoURL)
+                )
+                .navigationBarBackButtonHidden(false)
+            }
+        }
     }
 }
 
