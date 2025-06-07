@@ -16,7 +16,9 @@ struct VisibilityDetector: View {
             Color.clear
                 .onAppear { report(frame: geo.frame(in: .global)) }
                 .onChange(of: geo.frame(in: .global)) { oldFrame, newFrame in
-                    report(frame: newFrame)
+                    if abs(newFrame.midY - oldFrame.midY) > 10 {
+                        report(frame: newFrame)
+                    }
                 }
         }
     }

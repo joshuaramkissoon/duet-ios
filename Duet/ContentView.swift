@@ -104,13 +104,13 @@ struct ContentView: View {
                     viewModel: DateIdeaViewModel(toast: toast, videoUrl: ideaToOpen.cloudFrontVideoURL)
                 )
                 .navigationBarTitleDisplayMode(.inline)
-                .toolbar {
-                    ToolbarItem(placement: .navigationBarTrailing) {
-                        Button("Done") {
-                            deepLinkIdeaToOpen = nil
-                        }
-                    }
-                }
+//                .toolbar {
+//                    ToolbarItem(placement: .navigationBarTrailing) {
+//                        Button("Done") {
+//                            deepLinkIdeaToOpen = nil
+//                        }
+//                    }
+//                }
             }
         }
     }
@@ -130,6 +130,7 @@ struct ContentView: View {
             .padding(.horizontal, 16)
             .padding(.bottom, 20)
         }
+        .scrollDismissesKeyboard(.immediately)
     }
     
     // MARK: - Deep Link Navigation
@@ -160,8 +161,6 @@ struct ContentView: View {
         }
     }
 }
-
-
 
 struct ContentView_Previews: PreviewProvider {
     static var previews: some View {

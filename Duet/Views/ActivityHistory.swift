@@ -8,60 +8,80 @@
 import SwiftUI
 
 struct ActivityHistoryView: View {
+    @EnvironmentObject private var toast: ToastManager
     @StateObject private var viewModel: ActivityHistoryViewModel
-    @State private var tabHeight: CGFloat = 0
-    @State private var selectedActivity: DateIdeaResponse? = nil
     
     init(viewModel: ActivityHistoryViewModel = ActivityHistoryViewModel()) {
         _viewModel = StateObject(wrappedValue: viewModel)
     }
     
     var body: some View {
-        ScrollView(.vertical, showsIndicators: false) {
-            VStack(alignment: .leading, spacing: 6) {
-                // Header
-                HStack {
-                    Text("Recent Ideas")
-                        .font(.title3).fontWeight(.bold)
-                    Spacer()
-                    if viewModel.isLoading {
-                        ProgressView().scaleEffect(0.8)
-                    } else {
-                        Button { viewModel.loadActivities() } label: {
-                            Image(systemName: "arrow.clockwise")
-                                .foregroundColor(.appPrimary)
-                        }
+        VStack(alignment: .leading, spacing: 0) {
+            // Header
+            HStack {
+                Text("Recent Activity")
+                    .font(.title2).fontWeight(.bold)
+                    .foregroundColor(.primary)
+                Spacer()
+                if viewModel.isLoading {
+                    ProgressView().scaleEffect(0.8)
+                } else {
+                    Button { viewModel.loadActivities() } label: {
+                        Image(systemName: "arrow.clockwise")
+                            .foregroundColor(.appPrimary)
                     }
                 }
-                .padding(.horizontal)
-                .padding(.top, 20)
-                
-                if viewModel.activities.isEmpty && !viewModel.isLoading {
-                    emptyStateView
-                } else {
-                    resultList(viewModel.activities)
-                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 20)
+            .padding(.bottom, 16)
+            
+            if viewModel.activities.isEmpty && !viewModel.isLoading {
+                emptyStateView
+            } else {
+                recentActivityContent
             }
         }
-        .scrollDismissesKeyboard(.interactively)
     }
     
     @ViewBuilder
-    private func resultList(_ list: [DateIdeaResponse]) -> some View {
-        LazyVStack(spacing: 16) {
-            ForEach(list, id: \.id) { activity in
-                ActivityHistoryCard(activity: activity)
-                    .onTapGesture { selectedActivity = activity }
+    private var recentActivityContent: some View {
+        if let mostRecent = viewModel.activities.first, viewModel.activities.count > 0 {
+            VStack(alignment: .leading, spacing: 20) {
+                // Hero card for most recent idea
+                NavigationLink(destination: DateIdeaDetailView(
+                    dateIdea: mostRecent,
+                    viewModel: DateIdeaViewModel(toast: toast, videoUrl: mostRecent.cloudFrontVideoURL)
+                )) {
+                    ActivityHeroCard(activity: mostRecent)
+                }
+                .buttonStyle(.plain)
+                .padding(.horizontal, 16)
+                
+                // Remaining ideas in masonry grid
+                if viewModel.activities.count > 1 {
+                    let remainingActivities = Array(viewModel.activities.dropFirst())
+                    
+                    VStack(alignment: .leading, spacing: 12) {
+                        HStack {
+                            Text("Earlier")
+                                .font(.headline)
+                                .fontWeight(.semibold)
+                                .foregroundColor(.secondary)
+                            Spacer()
+                        }
+                        .padding(.horizontal, 16)
+                        
+                        ReusableMasonryGrid(
+                            activities: remainingActivities,
+                            style: .recentActivity
+                        )
+                        .padding(.horizontal, 16)
+                    }
+                }
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 8)
     }
-    
-    private func setupAppearance() {
-        UIPageControl.appearance().currentPageIndicatorTintColor = UIColor(Color.appPrimary)
-        UIPageControl.appearance().pageIndicatorTintColor = UIColor(Color.appSecondary)
-      }
     
     private var emptyStateView: some View {
         VStack(spacing: 12) {
@@ -79,6 +99,7 @@ struct ActivityHistoryView: View {
         }
         .frame(maxWidth: .infinity)
         .frame(height: 200)
+        .padding(.horizontal, 16)
     }
 }
 
@@ -156,7 +177,10 @@ struct ActivityDetailLoader: View {
     )
     let res = DateIdeaResponse(id: "", summary: mockDateIdea, title: "Title", description: "Desc", thumbnail_b64: nil, thumbnail_url: nil, video_url: nil, videoMetadata: VideoMetadata(ratio_width: 9, ratio_height: 16), original_source_url: nil, user_id: nil, user_name: nil, created_at: nil, isPublic: false)
     let vm = ActivityHistoryViewModel(activities: [res])
-    ActivityHistoryView(viewModel: vm)
+    
+    NavigationView {
+        ActivityHistoryView(viewModel: vm)
         .environmentObject(ToastManager())
         .withAppBackground()
+    }
 }

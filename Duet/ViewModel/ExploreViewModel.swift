@@ -239,17 +239,44 @@ class ExploreViewModel: ObservableObject {
                 case .success(let response):
                     if page == 1 {
                         self.feedItems = response.items
+                        // Fetch user data for all items on first page
+                        self.fetchUserDataForActivities(response.items)
                     } else {
                         // Filter out duplicates before appending
                         let existingIds = Set(self.feedItems.map { $0.id })
                         let newItems = response.items.filter { !existingIds.contains($0.id) }
                         self.feedItems.append(contentsOf: newItems)
+                        
+                        // Only fetch user data for new items
+                        self.fetchUserDataForActivities(newItems)
                     }
                     self.currentPage = page
                     self.hasMorePages = response.hasNext
                     
                 case .failure(let error):
                     self.errorMessage = error.localizedDescription
+                }
+            }
+        }
+    }
+    
+    // MARK: - User Data Fetching
+    
+    private func fetchUserDataForActivities(_ activities: [DateIdeaResponse]) {
+        // Extract unique user IDs from activities
+        let userIds = Array(Set(activities.compactMap { $0.user_id }))
+        guard !userIds.isEmpty else { return }
+        
+        print("🔄 Fetching user data for \(userIds.count) users from \(activities.count) activities")
+        
+        // NetworkClient.getUsers handles cache checking and fallback logic internally
+        NetworkClient.shared.getUsers(with: userIds, forceRefreshStaleProfiles: false) { result in
+            DispatchQueue.main.async {
+                switch result {
+                case .success(let users):
+                    print("✅ Successfully fetched/cached \(users.count) users")
+                case .failure(let error):
+                    print("❌ Failed to fetch users: \(error)")
                 }
             }
         }
@@ -283,6 +310,10 @@ class ExploreViewModel: ObservableObject {
                 switch result {
                 case .success(let ideas):
                     self.searchResults = ideas
+                    
+                    // Fetch user data for all search results
+                    self.fetchUserDataForActivities(ideas)
+                    
                 case .failure(let error):
                     self.errorMessage = error.localizedDescription
                 }

@@ -62,7 +62,7 @@ struct CachedVideoView: View {
     let width: CGFloat
     let thumbnailB64: String?
     
-    init(remoteURL: URL, thumbnailB64: String? = nil, aspectRatio: CGFloat = 16/9, width: CGFloat = 140, player: AVPlayer? = nil, isReady: Bool = false, statusCancellable: AnyCancellable? = nil) {
+    init(remoteURL: URL, thumbnailB64: String? = nil, aspectRatio: CGFloat = 9/16, width: CGFloat = 140, player: AVPlayer? = nil, isReady: Bool = false, statusCancellable: AnyCancellable? = nil) {
         self.remoteURL = remoteURL
         self.aspectRatio = aspectRatio
         self.width = width

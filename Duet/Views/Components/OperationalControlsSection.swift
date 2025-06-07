@@ -12,8 +12,6 @@ struct OperationalControlsSection: View {
     
     // Content moderation state
     @State private var showingReportContent = false
-    @State private var showingBlockUser = false
-    @State private var authorUser: User?
     @EnvironmentObject private var toast: ToastManager
     
     private var footerText: String {
@@ -307,7 +305,6 @@ struct OperationalControlsSection: View {
             VStack(spacing: 12) {
                 moderationDivider
                 reportContentButton
-                blockUserButton
             }
         }
     }
@@ -377,50 +374,6 @@ struct OperationalControlsSection: View {
             )
     }
     
-    @ViewBuilder
-    private var blockUserButton: some View {
-        Button(action: {
-            fetchAuthorAndShowBlockDialog()
-        }) {
-            HStack(alignment: .center, spacing: 12) {
-                Image(systemName: "person.slash")
-                    .font(.system(size: 20))
-                    .foregroundColor(.red)
-                    .frame(width: 24, height: 24)
-                
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Block User")
-                        .font(.headline)
-                        .fontWeight(.semibold)
-                        .foregroundColor(.primary)
-                    
-                    Text("Hide all content from this user")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-                
-                Spacer()
-                
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundColor(.secondary)
-            }
-            .padding(16)
-            .background(blockButtonBackground)
-        }
-        .buttonStyle(.plain)
-    }
-    
-    @ViewBuilder
-    private var blockButtonBackground: some View {
-        RoundedRectangle(cornerRadius: 12, style: .continuous)
-            .fill(Color.red.opacity(0.05))
-            .overlay(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .stroke(Color.red.opacity(0.3), lineWidth: 1)
-            )
-    }
-    
     // MARK: - Main Body
     
     var body: some View {
@@ -432,12 +385,6 @@ struct OperationalControlsSection: View {
         .sheet(isPresented: $showingReportContent) {
             ReportContentView(ideaId: dateIdea.id, isPresented: $showingReportContent)
                 .environmentObject(toast)
-        }
-        .sheet(isPresented: $showingBlockUser) {
-            if let user = authorUser {
-                BlockUserView(user: user, isPresented: $showingBlockUser)
-                    .environmentObject(toast)
-            }
         }
     }
     
@@ -455,35 +402,5 @@ struct OperationalControlsSection: View {
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
                     .stroke(Color(.systemGray5), lineWidth: 0.5)
             )
-    }
-    
-    private func fetchAuthorAndShowBlockDialog() {
-        guard let userId = dateIdea.user_id else {
-            toast.error("Unable to block user: User information not available")
-            return
-        }
-        
-        // Check if we already have the author user
-        if let author = authorUser, author.id == userId {
-            showingBlockUser = true
-            return
-        }
-        
-        // Fetch the author user information
-        NetworkClient.shared.getUsers(with: [userId]) { result in
-            DispatchQueue.main.async {
-                switch result {
-                case .success(let users):
-                    if let user = users.first {
-                        authorUser = user
-                        showingBlockUser = true
-                    } else {
-                        toast.error("Unable to block user: User information not found")
-                    }
-                case .failure(let error):
-                    toast.error("Unable to block user: \(error.localizedDescription)")
-                }
-            }
-        }
     }
 }

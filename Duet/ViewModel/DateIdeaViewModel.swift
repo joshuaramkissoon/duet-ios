@@ -424,7 +424,7 @@ struct DateIdeaResponse: Codable, Identifiable, Equatable {
     }
     
     static func fromGroupIdea(_ idea: GroupIdea) -> DateIdeaResponse {
-        return DateIdeaResponse(id: idea.id, summary: idea.dateIdea, title: idea.dateIdea.title, description: idea.dateIdea.summary, thumbnail_b64: idea.thumbnailB64, thumbnail_url: nil, video_url: idea.cloudFrontVideoURL, videoMetadata: idea.videoMetadata, original_source_url: idea.originalSourceUrl, user_id: nil, user_name: nil, created_at: nil, isPublic: false)
+        return DateIdeaResponse(id: idea.id, summary: idea.dateIdea, title: idea.dateIdea.title, description: idea.dateIdea.summary, thumbnail_b64: idea.thumbnailB64, thumbnail_url: nil, video_url: idea.cloudFrontVideoURL, videoMetadata: idea.videoMetadata, original_source_url: idea.originalSourceUrl, user_id: idea.addedBy, user_name: nil, created_at: Float(idea.addedAt.timeIntervalSince1970), isPublic: false)
     }
 
     private enum CodingKeys: String, CodingKey {

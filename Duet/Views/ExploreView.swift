@@ -230,8 +230,9 @@ struct BrowseModeView: View {
     @ViewBuilder
     private var contentGrid: some View {
         let activities = activitesToShow
-        MasonryGrid(
+        ReusableMasonryGrid(
             activities: activities,
+            style: .explore,
             onVideoTap: onVideoTap,
             onLoadMore: {
                 // Load next page when approaching the end (for feed only, not search)
@@ -247,281 +248,6 @@ struct BrowseModeView: View {
         if !viewModel.isSearchActive && viewModel.hasMorePages && viewModel.isLoadingFeed {
             ProgressView()
                 .padding()
-        }
-    }
-}
-
-// MARK: - Masonry Grid View
-struct MasonryGrid: View {
-    let activities: [DateIdeaResponse]
-    let onVideoTap: (DateIdeaResponse, Int) -> Void
-    let onLoadMore: () -> Void
-    
-    private let columns = Array(repeating: GridItem(.flexible(), spacing: 8), count: 2)
-    
-    var body: some View {
-        LazyVGrid(columns: columns, spacing: 8) {
-            ForEach(Array(activities.enumerated()), id: \.element.id) { index, activity in
-                MasonryCard(
-                    activity: activity,
-                    onTap: {
-                        onVideoTap(activity, index)
-                    }
-                )
-                .onAppear {
-                    // Load more when approaching the end
-                    if index >= activities.count - 4 {
-                        onLoadMore()
-                    }
-                }
-            }
-        }
-    }
-}
-
-// MARK: - Masonry Card View
-struct MasonryCard: View {
-    @EnvironmentObject private var authVM: AuthenticationViewModel
-    let activity: DateIdeaResponse
-    let onTap: () -> Void
-    
-    @State private var authorUser: User?
-    @State private var isLoadingAuthor = false
-    
-    // Video playing state
-    @State private var player: AVQueuePlayer?
-    @State private var looping: LoopingPlayer?
-    @State private var isActive = false
-    @State private var showVideo = false
-    @State private var loadingTask: Task<Void, Never>?
-    
-    var body: some View {
-        Button(action: onTap) {
-            VStack(spacing: 0) {
-                // Video/thumbnail with aspect ratio
-                ZStack {
-                    // Show video only while it's actively playing. Fade using `showVideo`.
-                    if isActive, let player {
-                        VideoPlayer(player: player)
-                            .aspectRatio(contentMode: .fill)
-                            .opacity(showVideo ? 1 : 0)
-                    }
-
-                    // Show thumbnail whenever video is not active or until the fade completes.
-                    if !isActive || !showVideo {
-                        AsyncImage(url: URL(string: activity.thumbnail_url ?? "")) { image in
-                            image
-                                .resizable()
-                                .aspectRatio(contentMode: .fill)
-                        } placeholder: {
-                            if let tb64 = activity.thumbnail_b64 {
-                                Base64ImageView(base64String: tb64, thumbWidth: cardWidth, thumbHeight: cardHeight)
-                            } else {
-                                PlaceholderImageView(thumbWidth: cardWidth, thumbHeight: cardHeight)
-                            }
-                        }
-                    }
-                }
-                .frame(width: cardWidth, height: cardHeight)
-                .clipped()
-                .overlay(
-                    VisibilityDetector { visible in
-                        Task { await updateActivity(visible: visible) }
-                    }
-                )
-                .overlay(
-                    // Text overlay with gradient
-                    VStack {
-                        Spacer()
-                        
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(activity.summary.title)
-                .font(.subheadline)
-                                .fontWeight(.semibold)
-                                .foregroundColor(.white)
-                                .lineLimit(2)
-                                .multilineTextAlignment(.leading)
-                            
-                            if let userId = activity.user_id, let userName = activity.user_name {
-                                let currentUserId = authVM.user?.uid
-                                let displayName = userId == currentUserId ? "You" : userName
-                                
-                                HStack(spacing: 6) {
-                                    if let user = authorUser {
-                                        ProfileImage(user: user, diam: 16)
-                                    }
-                                    
-                                    Text(displayName)
-                                        .font(.caption)
-                .fontWeight(.medium)
-                                        .foregroundColor(.white.opacity(0.9))
-                                    
-                                    Spacer()
-                                }
-                            }
-                        }
-                        .padding(.horizontal, 12)
-                        .padding(.bottom, 12)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(
-                            LinearGradient(
-                                gradient: Gradient(colors: [
-                                    Color.clear,
-                                    Color.black.opacity(0.3),
-                                    Color.black.opacity(0.7)
-                                ]),
-                                startPoint: .top,
-                                endPoint: .bottom
-                            )
-                        )
-                    }
-                )
-            }
-        }
-        .buttonStyle(.plain)
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
-        .onAppear {
-            fetchAuthorUserIfNeeded()
-        }
-        .onDisappear {
-            // Cancel any ongoing loading task
-            loadingTask?.cancel()
-            loadingTask = nil
-            
-            if let lp = looping {
-                SmallPlayerPool.shared.recycle(lp.player)
-                looping = nil
-                player = nil
-            }
-        }
-    }
-    
-    private var cardWidth: CGFloat {
-        // Screen width minus padding and spacing
-        (UIScreen.main.bounds.width - 32 - 8) / 2
-    }
-    
-    private var cardHeight: CGFloat {
-        if let metadata = activity.videoMetadata {
-            return cardWidth / metadata.aspectRatio
-        } else {
-            // Default to square for unknown aspect ratios
-            return cardWidth
-        }
-    }
-    
-    @MainActor
-    private func stopPlayback() {
-        // Cancel any ongoing loading task first
-        loadingTask?.cancel()
-        loadingTask = nil
-        
-        if let lp = looping {
-            lp.player.pause()
-            SmallPlayerPool.shared.recycle(lp.player)
-            looping = nil
-            player = nil
-        }
-        isActive = false
-        showVideo = false
-    }
-    
-    private func updateActivity(visible: Bool) {
-        guard visible else {
-            showVideo = false
-            Task { await MainActor.run { stopPlayback() } }
-            return
-        }
-
-        // Already set up? Just flag active and ensure muted.
-        if let existingLooping = looping {
-            existingLooping.player.isMuted = true // Ensure always muted
-            return
-        }
-
-        // Cancel any existing loading task before starting a new one
-        loadingTask?.cancel()
-        
-        loadingTask = Task {               // runs on a background executor by default
-            do {
-                // Check if task was cancelled before proceeding
-                try Task.checkCancellation()
-                
-                // 1️⃣  Fetch or download file (inside VideoCache actor)
-                guard let remote = URL(string: activity.cloudFrontVideoURL) else { return }
-                let local = try await VideoCache.shared.localFile(for: remote)
-
-                // Check cancellation again after potentially long-running operation
-                try Task.checkCancellation()
-
-                // 2️⃣  Get (or build) asset — heavy work is inside AssetPool actor
-                let asset = try await AssetPool.shared.asset(for: local)
-
-                // Check cancellation one more time before UI updates
-                try Task.checkCancellation()
-
-                // 3️⃣  Hop to MainActor for the lightweight player wiring
-                await MainActor.run {
-                    // Double-check that we haven't been cancelled and state is still valid
-                    guard !Task.isCancelled, looping == nil else {
-                        print("🚫 Video setup cancelled or already configured")
-                        return
-                    }
-                    
-                    let queue = SmallPlayerPool.shared.obtain()
-                    let item = AVPlayerItem(asset: asset)
-                    looping = LoopingPlayer(player: queue, item: item)
-
-                    // ALWAYS ensure muted - multiple safeguards
-                    queue.isMuted = true
-                    queue.volume = 0.0
-                    
-                    queue.play()
-                    player = queue
-                    isActive = true
-
-                    // delay thumbnail removal by 0.3 s
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                        withAnimation(.easeInOut(duration: 0.15)) {
-                            showVideo = true             // fade thumbnail out
-                        }
-                        
-                        // Double-check muted state after a delay
-                        queue.isMuted = true
-                        queue.volume = 0.0
-                    }
-                }
-            } catch is CancellationError {
-                // Task was cancelled, this is expected behavior
-                print("🚫 Video loading cancelled")
-            } catch {
-                print("❌ video load:", error)
-            }
-        }
-    }
-    
-    private func fetchAuthorUserIfNeeded() {
-        guard let userId = activity.user_id else { return }
-        
-        if authorUser != nil || isLoadingAuthor { return }
-        
-        if let cachedUser = UserCache.shared.getUser(id: userId, allowStaleProfileData: false) {
-            authorUser = cachedUser
-            return
-        }
-        
-        isLoadingAuthor = true
-        NetworkClient.shared.getUsers(with: [userId], forceRefreshStaleProfiles: true) { result in
-            DispatchQueue.main.async {
-                self.isLoadingAuthor = false
-                switch result {
-                case .success(let users):
-                    self.authorUser = users.first ?? User(id: userId, name: self.activity.user_name)
-                case .failure:
-                    self.authorUser = User(id: userId, name: self.activity.user_name)
-                }
-            }
         }
     }
 }
@@ -685,7 +411,6 @@ struct ExploreCard: View {
     
     // State for user data fetching
     @State private var authorUser: User?
-    @State private var isLoadingAuthor = false
     
     // Add task tracking to prevent race conditions
     @State private var loadingTask: Task<Void, Never>?
@@ -710,8 +435,8 @@ struct ExploreCard: View {
             .onAppear {
                 // Update the viewModel with the correct toast manager from environment
                 dateIdeaViewModel.updateToastManager(toast)
-                // Fetch author user data if needed
-                fetchAuthorUserIfNeeded()
+                // Load author from cache since it should already be cached by ExploreViewModel
+                loadAuthorFromCache()
             }
             .onReceive(NotificationCenter.default.publisher(for: .userProfileUpdated)) { notification in
                 // If the updated user is the author of this activity, clear local state to trigger refresh
@@ -798,16 +523,9 @@ struct ExploreCard: View {
             let displayName = userId == currentUserId ? "You" : userName
             
             HStack(spacing: 8) {
-                // Author avatar - show loading or user image
-                if isLoadingAuthor {
-                    // Show placeholder while loading
-                    Circle()
-                        .fill(Color.gray.opacity(0.2))
-                        .frame(width: 24, height: 24)
-                } else {
-                    let user = authorUser ?? User(id: userId, name: userName)
-                    ProfileImage(user: user, diam: 24)
-                }
+                // Author avatar
+                let user = authorUser ?? User(id: userId, name: userName)
+                ProfileImage(user: user, diam: 24)
                 
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(spacing: 4) {                        
@@ -1011,7 +729,6 @@ struct ExploreCard: View {
                 }
             } catch is CancellationError {
                 // Task was cancelled, this is expected behavior
-                print("🚫 Video loading cancelled")
             } catch {
                 print("❌ video load:", error)
             }
@@ -1020,37 +737,15 @@ struct ExploreCard: View {
     
     // MARK: - User Data Fetching
     
-    private func fetchAuthorUserIfNeeded() {
+    private func loadAuthorFromCache() {
         guard let userId = localActivity.user_id else { return }
         
-        // Check if we already have the user or are loading
-        if authorUser != nil || isLoadingAuthor { return }
-        
-        // First check cache - but force refresh if profile data is stale
-        if let cachedUser = UserCache.shared.getUser(id: userId, allowStaleProfileData: false) {
+        // Look up user from cache (should already be cached by ExploreViewModel)
+        if let cachedUser = UserCache.shared.getUser(id: userId, allowStaleProfileData: true) {
             authorUser = cachedUser
-            return
-        }
-        
-        // Fetch from network if not cached or profile data is stale
-        isLoadingAuthor = true
-        NetworkClient.shared.getUsers(with: [userId], forceRefreshStaleProfiles: true) { result in
-            DispatchQueue.main.async {
-                self.isLoadingAuthor = false
-                switch result {
-                case .success(let users):
-                    if let user = users.first {
-                        self.authorUser = user
-                        print("🔄 Refreshed user data for \(user.displayName) (profile data was stale)")
-                    } else {
-                        // Fallback to basic user object
-                        self.authorUser = User(id: userId, name: self.localActivity.user_name)
-                    }
-                case .failure:
-                    // Fallback to basic user object on network failure
-                    self.authorUser = User(id: userId, name: self.localActivity.user_name)
-                }
-            }
+        } else {
+            // Fallback to basic user object if not in cache
+            authorUser = User(id: userId, name: localActivity.user_name)
         }
     }
     

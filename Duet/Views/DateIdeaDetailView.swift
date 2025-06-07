@@ -24,6 +24,7 @@ struct DateIdeaDetailView: View {
     @State private var isOptionsExpanded = false
     @State private var authorUser: User?
     @State private var isLoadingAuthor = false
+    @State private var showingBlockUser = false
     
     private var sectionTitle: String {
         switch currentDateIdeaResponse.summary.content_type {
@@ -57,22 +58,13 @@ struct DateIdeaDetailView: View {
         ScrollViewReader { proxy in
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    // Author section (when current user is not the owner)
-                    if let userId = currentDateIdeaResponse.user_id,
-                       let currentUserId = authVM.user?.uid,
-                       userId != currentUserId {
-                        authorSection
-                            .padding(.top)
-                            .padding(.horizontal)
-                    }
-                    
                     if !viewModel.videoUrl.isEmpty, let url = URL(string: viewModel.videoUrl) {
                         HStack {
                             Spacer()
                             CachedVideoView(
                                 remoteURL: url, 
                                 thumbnailB64: currentDateIdeaResponse.thumbnail_b64,
-                                aspectRatio: currentDateIdeaResponse.videoMetadata?.aspectRatio ?? 16/9,
+                                aspectRatio: currentDateIdeaResponse.videoMetadata?.aspectRatio ?? 9/16,
                                 width: UIScreen.main.bounds.width - 100
                             )
                             Spacer()
@@ -99,6 +91,14 @@ struct DateIdeaDetailView: View {
                             .padding(.horizontal)
                             .padding(.top, -8)
                         }
+                    }
+                    
+                    // Author section (when current user is not the owner) - moved here
+                    if let userId = currentDateIdeaResponse.user_id,
+                       let currentUserId = authVM.user?.uid,
+                       userId != currentUserId {
+                        authorSection
+                            .padding(.horizontal)
                     }
                     
                     // Operational Controls Section (always shown, adapts based on permissions)
@@ -362,6 +362,12 @@ struct DateIdeaDetailView: View {
             .sheet(isPresented: $showShareSheet) {
                 ShareToGroupView(idea: currentDateIdeaResponse, isPresented: $showShareSheet, toastManager: toastManager)
             }
+            .sheet(isPresented: $showingBlockUser) {
+                if let user = authorUser ?? (currentDateIdeaResponse.user_id != nil ? User(id: currentDateIdeaResponse.user_id!, name: currentDateIdeaResponse.user_name) : nil) {
+                    BlockUserView(user: user, isPresented: $showingBlockUser)
+                        .environmentObject(toastManager)
+                }
+            }
             .navigationBarHidden(hideNavigationBar)
             .withAppBackground()
         }
@@ -393,35 +399,89 @@ struct DateIdeaDetailView: View {
     
     @ViewBuilder
     private var authorSection: some View {
-        HStack(spacing: 12) {
-            // Author avatar - show loading or user image
-            if isLoadingAuthor {
-                // Show placeholder while loading
-                Circle()
-                    .fill(Color.gray.opacity(0.2))
-                    .frame(width: 40, height: 40)
-            } else {
-                let user = authorUser ?? User(id: currentDateIdeaResponse.user_id ?? "", name: currentDateIdeaResponse.user_name ?? "Unknown")
-                ProfileImage(user: user, diam: 40)
-            }
-            
-            VStack(alignment: .leading, spacing: 2) {
-                Text(authorUser?.displayName ?? currentDateIdeaResponse.user_name ?? "Unknown")
-                    .font(.headline)
-                    .fontWeight(.semibold)
-                    .foregroundColor(.primary)
-                
-                if let createdAtTimestamp = currentDateIdeaResponse.created_at {
-                    let createdAtDate = Date(timeIntervalSince1970: TimeInterval(createdAtTimestamp))
-                    Text(timeAgoString(from: createdAtDate))
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
+        VStack(spacing: 0) {
+            HStack(spacing: 14) {
+                // Author avatar with subtle shadow
+                ZStack {
+                    if isLoadingAuthor {
+                        // Elegant loading placeholder
+                        Circle()
+                            .fill(
+                                LinearGradient(
+                                    gradient: Gradient(colors: [
+                                        Color.gray.opacity(0.1),
+                                        Color.gray.opacity(0.05)
+                                    ]),
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                            .frame(width: 44, height: 44)
+                            .overlay(
+                                Circle()
+                                    .stroke(Color.gray.opacity(0.1), lineWidth: 1)
+                            )
+                    } else {
+                        let user = authorUser ?? User(id: currentDateIdeaResponse.user_id ?? "", name: currentDateIdeaResponse.user_name ?? "Unknown")
+                        ProfileImage(user: user, diam: 44)
+                            .shadow(color: Color.black.opacity(0.06), radius: 4, x: 0, y: 1)
+                    }
                 }
+                
+                // Author info with improved typography
+                VStack(alignment: .leading, spacing: 3) {
+                    // Author name with reduced styling
+                    Text(authorUser?.displayName ?? currentDateIdeaResponse.user_name ?? "Unknown")
+                        .font(.headline)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.primary)
+                        .lineLimit(1)
+                    
+                    // Creation time with subtle styling
+                    if let createdAtTimestamp = currentDateIdeaResponse.created_at {
+                        let createdAtDate = Date(timeIntervalSince1970: TimeInterval(createdAtTimestamp))
+                        HStack(spacing: 5) {
+                            Image(systemName: "clock")
+                                .font(.caption2)
+                                .foregroundColor(.secondary.opacity(0.7))
+                            
+                            Text("\(friendlyTimeAgoString(from: createdAtDate))")
+                                .font(.caption)
+                                .fontWeight(.medium)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                }
+                
+                Spacer()
+                
+                // Options menu with block user functionality
+                Menu {
+                    Button(role: .destructive) {
+                        showingBlockUser = true
+                    } label: {
+                        Label("Block User", systemImage: "person.slash")
+                    }
+                } label: {
+                    Image(systemName: "ellipsis")
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundColor(.secondary)
+                        .frame(width: 24, height: 24)
+                        .background(
+                            Circle()
+                                .fill(Color.appSurface)
+                        )
+                }
+                .buttonStyle(.plain)
             }
-            
-            Spacer()
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
         }
-        .padding(.vertical, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(Color.adaptiveCardBackground)
+                .shadow(color: Color.black.opacity(0.06), radius: 6, x: 0, y: 3)
+        )
     }
     
     // MARK: - User Data Fetching

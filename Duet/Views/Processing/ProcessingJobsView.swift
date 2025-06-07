@@ -53,6 +53,20 @@ struct ProcessingJobsView: View {
                                     .cornerRadius(12)
                             }
                             
+                            // Clear All button (only show if there are jobs to clear)
+                            if !jobsToShow.isEmpty {
+                                Button(action: clearAllJobs) {
+                                    Text("Clear All")
+                                        .font(.caption)
+                                        .fontWeight(.medium)
+                                        .foregroundColor(.secondary)
+                                        .padding(.horizontal, 8)
+                                        .padding(.vertical, 4)
+                                        .background(Color.gray.opacity(0.1))
+                                        .cornerRadius(8)
+                                }
+                            }
+                            
                             Button(action: {
                                 withAnimation(.easeInOut(duration: 0.3)) {
                                     isExpanded.toggle()
@@ -161,6 +175,7 @@ struct ProcessingJobsView: View {
                 .padding(.vertical, 12)
             }
         }
+        .padding(.horizontal)
         .animation(.easeInOut(duration: 0.25), value: jobsToShow.map(\.id))
         .animation(.spring(response: 0.3, dampingFraction: 0.9), value: isExpanded)
         .shadow(
@@ -176,6 +191,19 @@ struct ProcessingJobsView: View {
     private func getActivityData(for job: ProcessingJob) -> DateIdeaResponse? {
         guard job.isCompleted, let resultId = job.resultId else { return nil }
         return activityVM.activities.first { $0.id == resultId }
+    }
+    
+    private func clearAllJobs() {
+        Task {
+            // Remove all jobs sequentially to avoid overwhelming the system
+            for job in jobsToShow {
+                do {
+                    try await processingManager.removeProcessingJob(job)
+                } catch {
+                    print("❌ Failed to remove job \(job.id ?? "unknown"): \(error)")
+                }
+            }
+        }
     }
 }
 
@@ -234,6 +262,20 @@ struct GroupProcessingJobsView: View {
                                     .padding(.vertical, 4)
                                     .background(Color.appPrimary)
                                     .cornerRadius(12)
+                            }
+                            
+                            // Clear All button (only show if there are jobs to clear)
+                            if !jobsToShow.isEmpty {
+                                Button(action: clearAllGroupJobs) {
+                                    Text("Clear All")
+                                        .font(.caption)
+                                        .fontWeight(.medium)
+                                        .foregroundColor(.secondary)
+                                        .padding(.horizontal, 8)
+                                        .padding(.vertical, 4)
+                                        .background(Color.gray.opacity(0.1))
+                                        .cornerRadius(8)
+                                }
                             }
                             
                             Button(action: {
@@ -363,6 +405,21 @@ struct GroupProcessingJobsView: View {
         let dateIdeaResponses = groupDetailVM.ideas.map { DateIdeaResponse.fromGroupIdea($0) }
         return dateIdeaResponses.first { $0.id == resultId }
     }
+    
+    private func clearAllGroupJobs() {
+        Task {
+            // Remove all jobs sequentially to avoid overwhelming the system
+            for job in jobsToShow {
+                do {
+                    try await processingManager.removeProcessingJob(job)
+                } catch {
+                    await MainActor.run {
+                        toast.error("Something went wrong!")
+                    }
+                }
+            }
+        }
+    }
 }
 
 // MARK: - Stacked Processing Cards Component
@@ -463,9 +520,9 @@ struct ProcessingJobVideoCard: View {
                         HStack(spacing: 12) {
                             // Thumbnail from Firestore
                             if let thumbnailB64 = job.thumbnailB64 {
-                                Base64ImageView(base64String: thumbnailB64, thumbWidth: 80)
+                                Base64ImageView(base64String: thumbnailB64, thumbWidth: 80, thumbHeight: 45)
                             } else {
-                                PlaceholderImageView(thumbWidth: 80)
+                                PlaceholderImageView(thumbWidth: 80, thumbHeight: 45)
                             }
                             
                             VStack(alignment: .leading, spacing: 4) {

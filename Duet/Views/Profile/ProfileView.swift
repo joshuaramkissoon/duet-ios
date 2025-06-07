@@ -35,7 +35,6 @@ struct ProfileView: View {
     private var calculatedPlayerLevel: PlayerLevel {
         let level = PlayerLevel(ideaCount: myLibraryVM.totalUserIdeas)
         let backendLevel = authVM.currentUser?.playerLevelInfo ?? .ideaSpark
-        print("🎯 Level Calculation - Ideas: \(myLibraryVM.totalUserIdeas), Calculated: \(level.title), Backend: \(backendLevel.title)")
         return level
     }
     

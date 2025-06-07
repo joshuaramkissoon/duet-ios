@@ -76,7 +76,7 @@ struct ShareToGroupView: View {
                                     Base64ImageView(
                                         base64String: thumbnailB64,
                                         thumbWidth: 200,
-                                        thumbHeight: 200 / (idea.videoMetadata?.aspectRatio ?? 16/9)
+                                        thumbHeight: 200 / (idea.videoMetadata?.aspectRatio ?? 9/16)
                                     )
                                     
                                     Text(idea.title)

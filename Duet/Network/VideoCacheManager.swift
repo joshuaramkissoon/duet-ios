@@ -178,7 +178,7 @@ final class SmallPlayerPool {
     func recycle(_ p: AVQueuePlayer) {
         p.pause()
         p.removeAllItems()
-        if free.count < 2 { free.append(p) }
+        if free.count < 6 { free.append(p) }
     }
 }
 

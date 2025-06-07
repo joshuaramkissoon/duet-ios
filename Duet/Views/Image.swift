@@ -14,7 +14,7 @@ struct Base64ImageView: View {
     var thumbHeight: CGFloat? = nil
     
     private var calculatedHeight: CGFloat {
-        thumbHeight ?? (thumbWidth * 9/16)  // Default to 16:9 if no height provided
+        thumbHeight ?? (thumbWidth * 16/9)  // Default to 9:16 if no height provided
     }
 
     var body: some View {
@@ -40,7 +40,7 @@ struct PlaceholderImageView: View {
     var thumbHeight: CGFloat? = nil
     
     private var calculatedHeight: CGFloat {
-        thumbHeight ?? (thumbWidth * 9/16)  // Default to 16:9 if no height provided
+        thumbHeight ?? (thumbWidth * 16/9)  // Default to 9:16 if no height provided
     }
 
     var body: some View {
