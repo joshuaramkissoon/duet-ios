@@ -26,9 +26,6 @@ struct ProfileView: View {
     @State private var isUpdatingName = false
     @FocusState private var isNameFieldFocused: Bool
     
-    // MARK: - Navigation State
-    @State private var navigateToMyLibrary = false
-    
     // MARK: - Computed Properties
     
     /// Calculate the current player level based on actual idea count (more reliable than backend level)
@@ -57,12 +54,6 @@ struct ProfileView: View {
 
                 Spacer(minLength: 60)
             }
-
-            // Hidden NavigationLink for programmatic navigation
-            NavigationLink(destination: MyLibraryView(viewModel: myLibraryVM), isActive: $navigateToMyLibrary) {
-                EmptyView()
-            }
-            .hidden()
         }
         .scrollDismissesKeyboard(.interactively)
         .navigationTitle("")
@@ -253,9 +244,7 @@ struct ProfileView: View {
     // MARK: - My Library Section
     @ViewBuilder
     private var myLibrarySection: some View {
-        Button(action: {
-            navigateToMyLibrary = true
-        }) {
+        NavigationLink(destination: MyLibraryView(viewModel: myLibraryVM)) {
             HStack(spacing: 16) {
                 // Icon
                 Image(systemName: "folder")

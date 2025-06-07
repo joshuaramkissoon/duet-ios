@@ -34,9 +34,6 @@ struct PlayerLevelRoadmapView: View {
                     // Header Section
                     headerSection
                     
-                    // Bonus Credits Callout
-                    bonusCreditsCallout
-                    
                     // Levels Section
                     VStack(spacing: 0) {
                         ForEach(Array(PlayerLevel.allCases.enumerated()), id: \.element) { index, level in

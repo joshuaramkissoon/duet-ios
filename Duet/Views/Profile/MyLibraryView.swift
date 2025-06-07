@@ -64,25 +64,10 @@ struct MyLibraryView: View {
     }
 
     var body: some View {
-        NavigationStack {
             libraryContent
                 .navigationTitle("My Library")
                 .navigationBarTitleDisplayMode(.inline)
-                .toolbar {
-                    ToolbarItem(placement: .navigationBarLeading) {
-                        Button(action: {
-                            dismiss()
-                        }) {
-                            HStack(spacing: 4) {
-                                Image(systemName: "chevron.left")
-                                    .font(.title3)
-                                    .fontWeight(.medium)
-                                Text("Profile")
-                            }
-                            .foregroundColor(.appPrimary)
-                        }
-                    }
-                    
+                .toolbar {                    
                     ToolbarItem(placement: .navigationBarTrailing) {
                         if !viewModel.isSearchFieldVisible {
                             Button(action: {
@@ -112,8 +97,6 @@ struct MyLibraryView: View {
                         .navigationBarBackButtonHidden(false)
                     }
                 }
-        }
-        .navigationBarHidden(true)  // Hide outer nav bar to prevent double bars
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { notification in
             if let keyboardFrame = notification.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? NSValue {
                 keyboardHeight = keyboardFrame.cgRectValue.height

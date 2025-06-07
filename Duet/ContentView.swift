@@ -20,7 +20,7 @@ struct ContentView: View {
     var body: some View {
         TabView(selection: $navigationManager.selectedTab) {
             // Home
-            NavigationView {
+            NavigationStack {
                 homeContent
                     .withAppBackground()
                     .navigationTitle("Duet")
@@ -31,7 +31,7 @@ struct ContentView: View {
             .tag(0)
 
             // Explore
-            NavigationView {
+            NavigationStack {
                 ExploreView(viewModel: exploreVM)
                     .withAppBackground()
             }
@@ -47,7 +47,7 @@ struct ContentView: View {
                 .tag(2)
             
             // Profile
-            NavigationView {
+            NavigationStack {
                 ProfileView()
                     .navigationTitle("Explore")
             }
