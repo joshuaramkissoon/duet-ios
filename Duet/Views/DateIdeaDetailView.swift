@@ -423,8 +423,11 @@ struct DateIdeaDetailView: View {
                             )
                     } else {
                         let user = authorUser ?? User(id: currentDateIdeaResponse.user_id ?? "", name: currentDateIdeaResponse.user_name ?? "Unknown")
-                        ProfileImage(user: user, diam: 44)
-                            .shadow(color: Color.black.opacity(0.06), radius: 4, x: 0, y: 1)
+                        NavigationLink(destination: UserProfileView(user: user)) {
+                            ProfileImage(user: user, diam: 44)
+                                .shadow(color: Color.black.opacity(0.06), radius: 4, x: 0, y: 1)
+                        }
+                        .buttonStyle(.plain)
                     }
                 }
                 

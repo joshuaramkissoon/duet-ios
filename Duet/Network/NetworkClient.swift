@@ -427,8 +427,22 @@ class NetworkClient: NSObject {
     }
     
     func getUserIdeas(userId: String, page: Int = 1, pageSize: Int = 20, completion: @escaping (Result<PaginatedFeedResponse, NetworkError>) -> Void) {
-        let url = baseUrl + "/ideas/user/\(userId)?page=\(page)&page_size=\(pageSize)"
-        getJSON(url: url, completion: completion)
+        Task {
+            do {
+                // Get Firebase auth token
+                guard let currentUser = Auth.auth().currentUser else {
+                    completion(.failure(.unknown("User not authenticated")))
+                    return
+                }
+                
+                let idToken = try await currentUser.getIDToken()
+                let url = baseUrl + "/ideas/user/\(userId)?page=\(page)&page_size=\(pageSize)"
+                
+                getJSON(url: url, authToken: idToken, completion: completion)
+            } catch {
+                completion(.failure(.unknown("Failed to get auth token: \(error.localizedDescription)")))
+            }
+        }
     }
     
     // Async getActivity method for ProcessingManager

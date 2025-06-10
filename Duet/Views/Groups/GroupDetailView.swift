@@ -428,14 +428,18 @@ private extension GroupDetailView {
         let isCurrentUser = member.id == authVM.user?.uid
         let displayName = isCurrentUser ? "You" : member.displayName
         
-        VStack(spacing: 4) {
-            ProfileImage(user: member, diam: 50)
-            Text(displayName)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
+        NavigationLink(destination: isCurrentUser ? nil : UserProfileView(user: member)) {
+            VStack(spacing: 4) {
+                ProfileImage(user: member, diam: 50)
+                Text(displayName)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+            .padding(8)
         }
-        .padding(8)
+        .buttonStyle(.plain)
+        .disabled(isCurrentUser)
         .contextMenu {
             if member.id != viewModel.group.ownerId {
                 let removeName = isCurrentUser ? "yourself" : member.displayName
